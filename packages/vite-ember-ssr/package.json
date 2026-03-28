@@ -48,7 +48,11 @@
   "scripts": {
     "build": "tsc",
     "dev": "tsc --watch",
-    "prepublishOnly": "tsc"
+    "prepublishOnly": "tsc",
+    "test": "vitest run",
+    "test:watch": "vitest",
+    "test:browser": "playwright test",
+    "test:all": "vitest run && playwright test"
   },
   "dependencies": {
     "happy-dom": "^20.8.9"
@@ -57,8 +61,11 @@
     "vite": "^6.0.0 || ^7.0.0"
   },
   "devDependencies": {
+    "@playwright/test": "^1.58.2",
     "@types/node": "^25.5.0",
+    "playwright": "^1.58.2",
     "typescript": "^6.0.2",
-    "vite": "^7.3.1"
+    "vite": "^7.3.1",
+    "vitest": "^4.1.2"
   }
 }

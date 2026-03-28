@@ -7,9 +7,9 @@
   "scripts": {
     "build": "pnpm --filter vite-ember-ssr build && pnpm --filter test-app build:all",
     "dev": "pnpm --filter test-server dev",
-    "test": "pnpm --filter test-server test",
-    "test:browser": "pnpm --filter test-server test:browser",
-    "test:all": "pnpm --filter test-server test:all",
+    "test": "pnpm --filter vite-ember-ssr test",
+    "test:browser": "pnpm --filter vite-ember-ssr test:browser",
+    "test:all": "pnpm --filter vite-ember-ssr test:all",
     "demo": "pnpm build && pnpm --filter test-server start",
     "clean": "rm -rf packages/*/dist"
   },
