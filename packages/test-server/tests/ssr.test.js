@@ -21,8 +21,8 @@ beforeAll(async () => {
 /**
  * Helper: render a route and return the assembled HTML string.
  */
-async function renderRoute(url) {
-  const rendered = await renderEmberApp({ url, createApp: createSsrApp });
+async function renderRoute(url, options = {}) {
+  const rendered = await renderEmberApp({ url, createApp: createSsrApp, ...options });
   const html = assembleHTML(template, rendered);
   return { html, rendered };
 }
@@ -373,5 +373,141 @@ describe('SSR with WarpDrive pokemon route', () => {
 
     // Should NOT be in loading state
     expect(html).not.toContain('data-loading');
+  }, 15_000);
+});
+
+// ─── Shoebox: server-side fetch capture ──────────────────────────────
+
+describe('SSR shoebox (fetch capture)', () => {
+  it('includes a shoebox script tag for routes that fetch data', async () => {
+    const { html } = await renderRoute('/pokemon-fetch', { shoebox: true });
+
+    expect(html).toContain('id="vite-ember-ssr-shoebox"');
+    expect(html).toContain('type="application/json"');
+  }, 15_000);
+
+  it('places the shoebox in the <head> section', async () => {
+    const { html } = await renderRoute('/pokemon-fetch', { shoebox: true });
+
+    // The shoebox script should appear within <head>...</head>
+    const headMatch = html.match(/<head[^>]*>([\s\S]*?)<\/head>/);
+    expect(headMatch).not.toBeNull();
+
+    const headContent = headMatch[1];
+    expect(headContent).toContain('id="vite-ember-ssr-shoebox"');
+  }, 15_000);
+
+  it('contains valid JSON with captured fetch entries', async () => {
+    const { html } = await renderRoute('/pokemon-fetch', { shoebox: true });
+
+    // Extract the shoebox script content
+    const scriptMatch = html.match(
+      /<script type="application\/json" id="vite-ember-ssr-shoebox">([\s\S]*?)<\/script>/,
+    );
+    expect(scriptMatch).not.toBeNull();
+
+    const entries = JSON.parse(scriptMatch[1]);
+    expect(Array.isArray(entries)).toBe(true);
+    expect(entries.length).toBeGreaterThan(0);
+
+    // Each entry should have the expected shape
+    for (const entry of entries) {
+      expect(entry).toHaveProperty('url');
+      expect(entry).toHaveProperty('status');
+      expect(entry).toHaveProperty('statusText');
+      expect(entry).toHaveProperty('headers');
+      expect(entry).toHaveProperty('body');
+      expect(typeof entry.url).toBe('string');
+      expect(typeof entry.status).toBe('number');
+      expect(typeof entry.body).toBe('string');
+    }
+  }, 15_000);
+
+  it('captures the pokemon list API URL', async () => {
+    const { html } = await renderRoute('/pokemon-fetch', { shoebox: true });
+
+    const scriptMatch = html.match(
+      /<script type="application\/json" id="vite-ember-ssr-shoebox">([\s\S]*?)<\/script>/,
+    );
+    const entries = JSON.parse(scriptMatch[1]);
+
+    // Should have captured the pokemon list fetch
+    const listEntry = entries.find((e) => e.url.includes('pokeapi.co/api/v2/pokemon'));
+    expect(listEntry).toBeDefined();
+    expect(listEntry.status).toBe(200);
+
+    // The body should be parseable JSON with results
+    const body = JSON.parse(listEntry.body);
+    expect(body.results).toBeDefined();
+    expect(body.results.length).toBe(12);
+  }, 15_000);
+
+  it('captures both parent and child route fetches for detail pages', async () => {
+    const { html } = await renderRoute('/pokemon-fetch/pikachu', { shoebox: true });
+
+    const scriptMatch = html.match(
+      /<script type="application\/json" id="vite-ember-ssr-shoebox">([\s\S]*?)<\/script>/,
+    );
+    const entries = JSON.parse(scriptMatch[1]);
+
+    // Should capture the list fetch (parent route) and detail fetch (child route)
+    const listEntry = entries.find(
+      (e) => e.url.includes('pokemon?limit=') || e.url.includes('pokemon?limit%3D'),
+    );
+    const detailEntry = entries.find((e) => e.url.includes('pokemon/pikachu'));
+
+    expect(listEntry).toBeDefined();
+    expect(detailEntry).toBeDefined();
+    expect(detailEntry.status).toBe(200);
+
+    // Detail body should contain pikachu data
+    const body = JSON.parse(detailEntry.body);
+    expect(body.name).toBe('pikachu');
+  }, 15_000);
+
+  it('captures WarpDrive route fetches', async () => {
+    const { html } = await renderRoute('/pokemon-warp-drive', { shoebox: true });
+
+    expect(html).toContain('id="vite-ember-ssr-shoebox"');
+
+    const scriptMatch = html.match(
+      /<script type="application\/json" id="vite-ember-ssr-shoebox">([\s\S]*?)<\/script>/,
+    );
+    const entries = JSON.parse(scriptMatch[1]);
+
+    // WarpDrive's handler chain ultimately calls fetch() to the PokeAPI
+    const pokeEntry = entries.find((e) => e.url.includes('pokeapi.co'));
+    expect(pokeEntry).toBeDefined();
+    expect(pokeEntry.status).toBe(200);
+  }, 15_000);
+
+  it('does NOT include a shoebox for routes that do not fetch data', async () => {
+    const { html } = await renderRoute('/', { shoebox: true });
+
+    // The index route makes no fetch calls, so the shoebox should be empty/absent
+    expect(html).not.toContain('id="vite-ember-ssr-shoebox"');
+  });
+
+  it('does NOT include a shoebox when shoebox option is false', async () => {
+    const { html } = await renderRoute('/pokemon-fetch', { shoebox: false });
+
+    expect(html).not.toContain('id="vite-ember-ssr-shoebox"');
+  }, 15_000);
+
+  it('does NOT include a shoebox when shoebox option is omitted', async () => {
+    const { html } = await renderRoute('/pokemon-fetch');
+
+    expect(html).not.toContain('id="vite-ember-ssr-shoebox"');
+  }, 15_000);
+
+  it('still renders route content correctly when shoebox is enabled', async () => {
+    const { html, rendered } = await renderRoute('/pokemon-fetch', { shoebox: true });
+
+    // Normal rendering still works
+    expect(rendered.statusCode).toBe(200);
+    expect(html).toContain('data-route="pokemon-fetch"');
+    expect(html).toContain('data-pokemon="bulbasaur"');
+    expect(html).toContain('id="ssr-body-start"');
+    expect(html).toContain('id="ssr-body-end"');
   }, 15_000);
 });

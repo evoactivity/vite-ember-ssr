@@ -49,6 +49,13 @@ export interface RenderOptions {
    * This should be the `createSsrApp` export from the Ember app.
    */
   createApp: () => EmberApplication;
+
+  /**
+   * When true, intercepts all fetch() calls during SSR rendering and
+   * serializes the responses into a <script> tag in the HTML output.
+   * The client can then replay these responses to avoid double-fetching.
+   */
+  shoebox?: boolean;
 }
 
 export interface RenderResult {
@@ -60,6 +67,24 @@ export interface RenderResult {
   statusCode: number;
   /** Any error that occurred during rendering */
   error?: Error;
+}
+
+// ─── Shoebox Types ───────────────────────────────────────────────────
+
+/**
+ * A captured fetch response for transfer from server to client.
+ */
+export interface ShoeboxEntry {
+  /** The request URL */
+  url: string;
+  /** HTTP status code */
+  status: number;
+  /** HTTP status text */
+  statusText: string;
+  /** Response headers (serializable subset) */
+  headers: Record<string, string>;
+  /** Response body as text */
+  body: string;
 }
 
 // ─── HappyDOM Environment ────────────────────────────────────────────
@@ -156,6 +181,95 @@ async function withBrowserGlobals<T>(
   }
 }
 
+// ─── Shoebox: Fetch Interception ─────────────────────────────────────
+
+const SHOEBOX_SCRIPT_ID = 'vite-ember-ssr-shoebox';
+
+/**
+ * Creates a fetch interceptor that captures responses during SSR.
+ *
+ * Wraps globalThis.fetch to record URL → response mappings for GET
+ * requests. The original response is returned to the caller untouched;
+ * a cloned copy is read for the shoebox.
+ *
+ * Only GET requests are captured — POST/PUT/DELETE should not be
+ * replayed on the client.
+ */
+function createFetchInterceptor() {
+  const entries = new Map<string, ShoeboxEntry>();
+  const originalFetch = globalThis.fetch;
+
+  const interceptedFetch: typeof fetch = async (input, init) => {
+    const request = new Request(input, init);
+    const method = request.method.toUpperCase();
+
+    // Only intercept GET requests
+    if (method !== 'GET') {
+      return originalFetch(input, init);
+    }
+
+    const response = await originalFetch(input, init);
+    const url = request.url;
+
+    // Clone the response so we can read the body without consuming it
+    // for the caller
+    try {
+      const clone = response.clone();
+      const body = await clone.text();
+
+      const headers: Record<string, string> = {};
+      clone.headers.forEach((value, key) => {
+        headers[key] = value;
+      });
+
+      entries.set(url, {
+        url,
+        status: clone.status,
+        statusText: clone.statusText,
+        headers,
+        body,
+      });
+    } catch {
+      // If cloning fails (e.g., body already consumed), skip capture.
+      // The SSR render still works; the client just won't get this
+      // entry in the shoebox.
+    }
+
+    return response;
+  };
+
+  return {
+    /** Install the interceptor onto globalThis.fetch */
+    install() {
+      globalThis.fetch = interceptedFetch;
+    },
+    /** Restore the original globalThis.fetch */
+    restore() {
+      globalThis.fetch = originalFetch;
+    },
+    /** Get all captured entries */
+    getEntries(): ShoeboxEntry[] {
+      return Array.from(entries.values());
+    },
+  };
+}
+
+/**
+ * Serializes shoebox entries into a <script> tag for embedding in HTML.
+ * Returns an empty string if there are no entries.
+ */
+function serializeShoebox(entries: ShoeboxEntry[]): string {
+  if (entries.length === 0) {
+    return '';
+  }
+
+  const json = JSON.stringify(entries);
+  // Escape </script> in JSON to prevent premature tag closure
+  const safeJson = json.replace(/<\/(script)/gi, '<\\/$1');
+
+  return `<script type="application/json" id="${SHOEBOX_SCRIPT_ID}">${safeJson}</script>`;
+}
+
 // ─── Core Rendering ──────────────────────────────────────────────────
 
 /**
@@ -172,7 +286,7 @@ async function withBrowserGlobals<T>(
  * shared state between requests.
  */
 export async function renderEmberApp(options: RenderOptions): Promise<RenderResult> {
-  const { url, createApp } = options;
+  const { url, createApp, shoebox = false } = options;
 
   const window = createSSRWindow(url);
   const document = window.document as unknown as Document;
@@ -180,30 +294,54 @@ export async function renderEmberApp(options: RenderOptions): Promise<RenderResu
   let app: EmberApplication | undefined;
   let instance: EmberApplicationInstance | undefined;
   let error: Error | undefined;
+  let shoeboxEntries: ShoeboxEntry[] = [];
+
+  // Set up the fetch interceptor before rendering (if shoebox is enabled)
+  const interceptor = shoebox ? createFetchInterceptor() : null;
 
   try {
     await withBrowserGlobals(window, async () => {
-      // Create a fresh Ember application (autoboot must be false)
-      app = createApp();
+      // Install the fetch interceptor inside withBrowserGlobals so it
+      // captures fetches made during the Ember render lifecycle
+      interceptor?.install();
 
-      // Application#visit() handles the full boot sequence:
-      //   app.boot() → app.buildInstance() → instance.boot(options) → instance.visit(url)
-      const bootOptions: BootOptions = {
-        isBrowser: false,
-        document,
-        rootElement: document.body as unknown as Element,
-        shouldRender: true,
-      };
+      try {
+        // Create a fresh Ember application (autoboot must be false)
+        app = createApp();
 
-      instance = await app.visit(url, bootOptions);
+        // Application#visit() handles the full boot sequence:
+        //   app.boot() → app.buildInstance() → instance.boot(options) → instance.visit(url)
+        const bootOptions: BootOptions = {
+          isBrowser: false,
+          document,
+          rootElement: document.body as unknown as Element,
+          shouldRender: true,
+        };
+
+        instance = await app.visit(url, bootOptions);
+      } finally {
+        // Always restore original fetch, even if rendering fails
+        interceptor?.restore();
+      }
     });
   } catch (e) {
     error = e instanceof Error ? e : new Error(String(e));
   }
 
+  // Collect shoebox entries after render completes
+  if (interceptor) {
+    shoeboxEntries = interceptor.getEntries();
+  }
+
   // Extract rendered HTML before cleanup
   const head = document.head?.innerHTML ?? '';
   const body = document.body?.innerHTML ?? '';
+
+  // Build the shoebox script tag (empty string if no entries)
+  const shoeboxHTML = serializeShoebox(shoeboxEntries);
+
+  // Prepend shoebox to head content so it's available early
+  const fullHead = shoeboxHTML + head;
 
   // Wrap body in boundary markers so the client can identify SSR content
   const wrappedBody = [
@@ -229,7 +367,7 @@ export async function renderEmberApp(options: RenderOptions): Promise<RenderResu
   await window.happyDOM.close();
 
   return {
-    head,
+    head: fullHead,
     body: wrappedBody,
     statusCode: error ? 500 : 200,
     error,
