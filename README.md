@@ -3,11 +3,11 @@
 > [!WARNING]
 > **EXPERIMENTAL** — This project is in early development and targets **compatless** Ember apps only (no `@embroider/compat`, no `ember-cli-build.js`, no `classicEmberSupport()`). APIs will change. Do not use in production.
 
-Vite plugin and SSR runtime for Ember.js applications. Uses [HappyDOM](https://github.com/nicedayfor/happy-dom) for server-side rendering — no FastBoot, no VM sandbox.
+Vite plugin and SSR runtime for Ember.js applications. Uses [Happy DOM](https://github.com/capricorn86/happy-dom) for server-side rendering — no FastBoot, no VM sandbox.
 
 ## Architecture
 
-- **HappyDOM Window** provides a full per-request browser-like environment. Ember runs directly in the Node.js process with globals swapped per request.
+- **Happy DOM Window** provides a full per-request browser-like environment. Ember runs directly in the Node.js process with globals swapped per request.
 - **`Application.visit(url)`** drives the entire render cycle server-side.
 - **No hydration yet** — the client boots normally and replaces SSR content. SSR provides the initial visual while JS loads.
 - **Shoebox** — fetch responses captured during SSR are serialized into the HTML and replayed on the client to avoid duplicate API requests.
@@ -48,7 +48,7 @@ Vite plugin for the SSR build config. Writes a `package.json` with `"type": "mod
 import { renderEmberApp, assembleHTML } from 'vite-ember-ssr/server';
 ```
 
-- **`renderEmberApp(options)`** — renders an Ember app at a given URL using HappyDOM. Accepts `{ url, createApp, shoebox? }`. Returns `{ head, body, statusCode, error }`.
+- **`renderEmberApp(options)`** — renders an Ember app at a given URL using Happy DOM. Accepts `{ url, createApp, shoebox? }`. Returns `{ head, body, statusCode, error }`.
 - **`assembleHTML(template, renderResult)`** — replaces `<!-- VITE_EMBER_SSR_HEAD -->` and `<!-- VITE_EMBER_SSR_BODY -->` markers in the HTML template with rendered content.
 
 ### `vite-ember-ssr/client`
