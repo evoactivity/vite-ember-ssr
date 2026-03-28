@@ -51,14 +51,14 @@
     "prepublishOnly": "tsc"
   },
   "dependencies": {
-    "happy-dom": "^17.4.4"
+    "happy-dom": "^20.8.9"
   },
   "peerDependencies": {
     "vite": "^6.0.0 || ^7.0.0"
   },
   "devDependencies": {
-    "@types/node": "^22.15.0",
-    "typescript": "^5.9.3",
+    "@types/node": "^25.5.0",
+    "typescript": "^6.0.2",
     "vite": "^7.3.1"
   }
 }
