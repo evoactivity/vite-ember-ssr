@@ -227,3 +227,105 @@ test.describe('item list filtering', () => {
     await expect(page.locator('.item-entries li')).toHaveCount(5);
   });
 });
+
+// ─── Pokemon routes with fetch (SSR + client) ───────────────────────
+
+test.describe('pokemon routes with fetched data', () => {
+  test('pokemon list page shows SSR content with fetched data (no JS)', async ({ page }) => {
+    // Block JS to verify pure SSR
+    await page.route('**/*.js', (route) => route.abort());
+
+    await page.goto('/pokemon');
+
+    await expect(page.locator('[data-route="pokemon"]')).toBeVisible();
+    await expect(page.locator('h1')).toHaveText('Pokémon');
+    await expect(page.locator('[data-component="pokemon-list"]')).toBeVisible();
+
+    // Fetched data should be in SSR HTML
+    await expect(page.locator('[data-pokemon="bulbasaur"]')).toBeVisible();
+    await expect(page.locator('[data-pokemon="charmander"]')).toBeVisible();
+    await expect(page.locator('[data-pokemon="squirtle"]')).toBeVisible();
+  });
+
+  test('pokemon detail page shows SSR content with fetched data (no JS)', async ({ page }) => {
+    await page.route('**/*.js', (route) => route.abort());
+
+    await page.goto('/pokemon/pikachu');
+
+    // Parent list is present
+    await expect(page.locator('[data-component="pokemon-list"]')).toBeVisible();
+
+    // Detail view with fetched data
+    await expect(page.locator('[data-route="pokemon.show"]')).toBeVisible();
+    await expect(page.locator('[data-pokemon-name="pikachu"]')).toBeVisible();
+    await expect(page.locator('h2')).toHaveText('pikachu');
+    await expect(page.locator('[data-field="id"]')).toHaveText('25');
+    await expect(page.locator('[data-type="electric"]')).toBeVisible();
+    await expect(page.locator('[data-sprite]')).toBeVisible();
+  });
+
+  test('client-side navigation to pokemon list fetches data', async ({ page }) => {
+    await page.goto('/');
+
+    // Wait for Ember to boot
+    await page.waitForFunction(() => {
+      return !document.getElementById('ssr-body-start');
+    }, { timeout: 15_000 });
+
+    // Navigate to pokemon via client-side link
+    await page.locator('nav a:has-text("Pokémon")').click();
+    await page.waitForURL('/pokemon', { timeout: 10_000 });
+
+    // Fetched data should be rendered by client Ember
+    await expect(page.locator('[data-route="pokemon"]')).toBeVisible();
+    await expect(page.locator('[data-pokemon="bulbasaur"]')).toBeVisible();
+    await expect(page.locator('[data-pokemon="charmander"]')).toBeVisible();
+  });
+
+  test('clicking a pokemon navigates to its detail page', async ({ page }) => {
+    await page.goto('/pokemon');
+
+    // Wait for Ember to boot
+    await page.waitForFunction(() => {
+      return !document.getElementById('ssr-body-start');
+    }, { timeout: 15_000 });
+
+    // Click on bulbasaur
+    await page.locator('[data-pokemon="bulbasaur"] a').click();
+    await page.waitForURL('/pokemon/bulbasaur', { timeout: 10_000 });
+
+    // Detail view should show bulbasaur data
+    await expect(page.locator('[data-pokemon-name="bulbasaur"]')).toBeVisible();
+    await expect(page.locator('[data-field="id"]')).toHaveText('1');
+    await expect(page.locator('[data-type="grass"]')).toBeVisible();
+    await expect(page.locator('[data-type="poison"]')).toBeVisible();
+    await expect(page.locator('[data-sprite]')).toBeVisible();
+
+    // Parent list should still be visible
+    await expect(page.locator('[data-component="pokemon-list"]')).toBeVisible();
+  });
+
+  test('navigating between pokemon detail pages updates content', async ({ page }) => {
+    await page.goto('/pokemon/bulbasaur');
+
+    // Wait for Ember to boot
+    await page.waitForFunction(() => {
+      return !document.getElementById('ssr-body-start');
+    }, { timeout: 15_000 });
+
+    await expect(page.locator('[data-pokemon-name="bulbasaur"]')).toBeVisible();
+    await expect(page.locator('[data-field="id"]')).toHaveText('1');
+
+    // Navigate to charmander via the list
+    await page.locator('[data-pokemon="charmander"] a').click();
+    await page.waitForURL('/pokemon/charmander', { timeout: 10_000 });
+
+    // Content should update to charmander
+    await expect(page.locator('[data-pokemon-name="charmander"]')).toBeVisible();
+    await expect(page.locator('[data-field="id"]')).toHaveText('4');
+    await expect(page.locator('[data-type="fire"]')).toBeVisible();
+
+    // Bulbasaur data should be gone
+    await expect(page.locator('[data-pokemon-name="bulbasaur"]')).not.toBeAttached();
+  });
+});

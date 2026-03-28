@@ -241,3 +241,89 @@ describe('SSR renders each route independently', () => {
     expect(about.html).toContain('data-count="0"');
   });
 });
+
+// ─── Fetch in route model hooks ──────────────────────────────────────
+
+describe('SSR with fetch in route model hooks', () => {
+  it('renders the pokemon list at /pokemon with fetched data', async () => {
+    const { html, rendered } = await renderRoute('/pokemon');
+
+    expect(rendered.statusCode).toBe(200);
+    expect(rendered.error).toBeUndefined();
+
+    // Route layout
+    expect(html).toContain('data-route="pokemon"');
+    expect(html).toContain('<h1>Pokémon</h1>');
+    expect(html).toContain('data-component="pokemon-list"');
+
+    // Should have 12 pokemon from the API
+    expect(html).toContain('data-pokemon="bulbasaur"');
+    expect(html).toContain('data-pokemon="ivysaur"');
+    expect(html).toContain('data-pokemon="charmander"');
+    expect(html).toContain('data-pokemon="squirtle"');
+
+    // Each pokemon should have a link to its detail page
+    expect(html).toContain('href="/pokemon/bulbasaur"');
+    expect(html).toContain('href="/pokemon/charmander"');
+  }, 15_000);
+
+  it('renders a pokemon detail page with fetched data', async () => {
+    const { html, rendered } = await renderRoute('/pokemon/pikachu');
+
+    expect(rendered.statusCode).toBe(200);
+    expect(rendered.error).toBeUndefined();
+
+    // Detail view
+    expect(html).toContain('data-route="pokemon.show"');
+    expect(html).toContain('data-pokemon-name="pikachu"');
+    expect(html).toContain('<h2>pikachu</h2>');
+
+    // Sprite image
+    expect(html).toContain('data-sprite');
+    expect(html).toContain('src="https://raw.githubusercontent.com/PokeAPI/sprites/');
+
+    // Stats from the API
+    expect(html).toContain('data-field="id"');
+    expect(html).toContain('25');  // pikachu's id
+    expect(html).toContain('data-type="electric"');
+    expect(html).toContain('data-ability="static"');
+
+    // Base stats
+    expect(html).toContain('data-stat="hp"');
+    expect(html).toContain('data-stat="speed"');
+  }, 15_000);
+
+  it('renders the parent pokemon list alongside the detail view', async () => {
+    const { html } = await renderRoute('/pokemon/pikachu');
+
+    // Parent route (pokemon list) should also be rendered
+    expect(html).toContain('data-component="pokemon-list"');
+    expect(html).toContain('data-pokemon="bulbasaur"');
+
+    // And the child detail
+    expect(html).toContain('data-pokemon-name="pikachu"');
+  }, 15_000);
+
+  it('renders different pokemon detail pages correctly', async () => {
+    const pikachu = await renderRoute('/pokemon/pikachu');
+    const charmander = await renderRoute('/pokemon/charmander');
+
+    // Different pokemon
+    expect(pikachu.html).toContain('data-pokemon-name="pikachu"');
+    expect(pikachu.html).toContain('data-type="electric"');
+
+    expect(charmander.html).toContain('data-pokemon-name="charmander"');
+    expect(charmander.html).toContain('data-type="fire"');
+
+    // No cross-contamination
+    expect(pikachu.html).not.toContain('data-pokemon-name="charmander"');
+    expect(charmander.html).not.toContain('data-pokemon-name="pikachu"');
+  }, 15_000);
+
+  it('does not show pokemon data on non-pokemon routes', async () => {
+    const { html } = await renderRoute('/');
+
+    expect(html).not.toContain('data-route="pokemon"');
+    expect(html).not.toContain('data-component="pokemon-list"');
+  });
+});
