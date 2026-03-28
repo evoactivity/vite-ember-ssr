@@ -2,7 +2,7 @@ import Fastify from 'fastify';
 import { readFile } from 'node:fs/promises';
 import { resolve } from 'node:path';
 import { fileURLToPath } from 'node:url';
-import { renderEmberApp, assembleHTML } from 'vite-ember-ssr/server';
+import { render } from 'vite-ember-ssr/server';
 
 const __dirname = fileURLToPath(new URL('.', import.meta.url));
 const isDev = process.argv.includes('--dev');
@@ -43,16 +43,6 @@ async function setupDevMode(app) {
     root: testAppRoot,
     server: { middlewareMode: true },
     appType: 'custom',
-    ssr: {
-      noExternal: [
-        /^@ember\//,
-        /^@glimmer\//,
-        /^@embroider\//,
-        /^@warp-drive\//,
-        /^ember-/,
-        'decorator-transforms',
-      ],
-    },
   });
 
   // Mount Vite's middleware on Fastify
@@ -68,15 +58,12 @@ async function setupDevMode(app) {
     }
 
     try {
-      // 1. Read the fresh index.html template
       let template = await readFile(resolve(testAppRoot, 'index.html'), 'utf-8');
-
-      // 2. Apply Vite's HTML transforms (injects HMR client, etc.)
       template = await vite.transformIndexHtml(url, template);
 
-      // 3. Load the SSR entry module via Vite's transform pipeline
-      const appModule = await vite.ssrLoadModule(resolve(testAppRoot, 'app/app-ssr.ts'));
-      const { createSsrApp } = appModule;
+      const { createSsrApp } = await vite.ssrLoadModule(
+        resolve(testAppRoot, 'app/app-ssr.ts'),
+      );
 
       if (typeof createSsrApp !== 'function') {
         throw new Error(
@@ -85,19 +72,16 @@ async function setupDevMode(app) {
         );
       }
 
-      // 4. Render the Ember app at the requested URL
-      const rendered = await renderEmberApp({ url, createApp: createSsrApp, shoebox: true });
+      const { html, statusCode, error } = await render({
+        url,
+        template,
+        createApp: createSsrApp,
+        shoebox: true,
+      });
 
-      if (rendered.error) {
-        app.log.error(rendered.error, 'SSR rendering error');
-      }
+      if (error) app.log.error(error, 'SSR rendering error');
 
-      // 5. Assemble and send
-      const html = assembleHTML(template, rendered);
-      return reply
-        .code(rendered.statusCode)
-        .type('text/html')
-        .send(html);
+      return reply.code(statusCode).type('text/html').send(html);
 
     } catch (e) {
       if (e instanceof Error) {
@@ -144,17 +128,16 @@ async function setupProductionMode(app) {
     }
 
     try {
-      const rendered = await renderEmberApp({ url, createApp: createSsrApp, shoebox: true });
+      const { html, statusCode, error } = await render({
+        url,
+        template,
+        createApp: createSsrApp,
+        shoebox: true,
+      });
 
-      if (rendered.error) {
-        app.log.error(rendered.error, 'SSR rendering error');
-      }
+      if (error) app.log.error(error, 'SSR rendering error');
 
-      const html = assembleHTML(template, rendered);
-      return reply
-        .code(rendered.statusCode)
-        .type('text/html')
-        .send(html);
+      return reply.code(statusCode).type('text/html').send(html);
 
     } catch (e) {
       app.log.error(e, 'SSR request failed');

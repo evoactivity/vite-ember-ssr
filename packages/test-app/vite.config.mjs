@@ -1,6 +1,7 @@
 import { defineConfig } from 'vite';
 import { extensions, ember } from '@embroider/vite';
 import { babel } from '@rollup/plugin-babel';
+import { emberSsr } from 'vite-ember-ssr/vite-plugin';
 
 export default defineConfig({
   plugins: [
@@ -9,8 +10,6 @@ export default defineConfig({
       babelHelpers: 'runtime',
       extensions,
     }),
+    emberSsr(),
   ],
-  build: {
-    outDir: 'dist/client',
-  },
 });

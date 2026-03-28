@@ -3,6 +3,7 @@
   "version": "1.0.0",
   "description": "",
   "main": "index.js",
+  "private": true,
   "scripts": {
     "build": "pnpm --filter vite-ember-ssr build && pnpm --filter test-app build:all",
     "dev": "pnpm --filter test-server dev",
@@ -13,8 +14,8 @@
     "clean": "rm -rf packages/*/dist"
   },
   "keywords": [],
-  "author": "",
-  "license": "ISC",
+  "author": "Liam Potter",
+  "license": "MIT",
   "packageManager": "pnpm@10.24.0",
   "type": "module"
 }

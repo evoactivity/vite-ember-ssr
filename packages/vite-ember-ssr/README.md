@@ -1,0 +1,189 @@
+# vite-ember-ssr
+
+> [!WARNING]
+> **EXPERIMENTAL** — This project is in early development and targets **compatless** Ember apps only (no `@embroider/compat`, no `ember-cli-build.js`, no `classicEmberSupport()`). APIs will change. Do not use in production.
+
+Vite plugin and SSR runtime for Ember.js applications. Uses [HappyDOM](https://github.com/capricorn86/happy-dom) for server-side rendering — no FastBoot, no VM sandbox.
+
+## Architecture
+
+- **HappyDOM Window** provides a full per-request browser-like environment. Ember runs directly in the Node.js process with globals swapped per request.
+- **`Application.visit(url)`** drives the entire render cycle server-side.
+- **No hydration yet** — the client boots normally and replaces SSR content. SSR provides the initial visual while JS loads.
+- **Shoebox** — fetch responses captured during SSR are serialized into the HTML and replayed on the client to avoid duplicate API requests.
+
+## Requirements
+
+- Compatless Ember app using `@embroider/vite` (the `ember()` plugin only)
+- [`ember-strict-application-resolver`](https://github.com/nicedayfor/ember-strict-application-resolver) instead of classic `ember-resolver`
+- Config as a direct ES module import (no `<meta>` tag, no `@embroider/config-meta-loader`)
+- Vite 6+
+- Node 22+
+
+## Installation
+
+```sh
+pnpm add -D vite-ember-ssr
+```
+
+## Setup
+
+### 1. Vite config
+
+```js
+// vite.config.mjs
+import { defineConfig } from 'vite';
+import { extensions, ember } from '@embroider/vite';
+import { babel } from '@rollup/plugin-babel';
+import { emberSsr } from 'vite-ember-ssr/vite-plugin';
+
+export default defineConfig({
+  plugins: [
+    ember(),
+    babel({ babelHelpers: 'runtime', extensions }),
+    emberSsr(),
+  ],
+});
+```
+
+### 2. HTML template
+
+Add SSR markers to `index.html`:
+
+```html
+<!DOCTYPE html>
+<html>
+  <head>
+    <meta charset="utf-8">
+    <!-- VITE_EMBER_SSR_HEAD -->
+  </head>
+  <body>
+    <!-- VITE_EMBER_SSR_BODY -->
+    <script type="module" src="/app/entry.ts"></script>
+  </body>
+</html>
+```
+
+### 3. SSR entry (`app/app-ssr.ts`)
+
+Export a factory that creates the Ember app with `autoboot: false`:
+
+```ts
+import EmberApp from 'ember-strict-application-resolver';
+import config from './config/environment.ts';
+import Router from './router.ts';
+
+class App extends EmberApp {
+  modulePrefix = config.modulePrefix;
+  modules = {
+    './router': Router,
+    ...import.meta.glob('./{routes,templates}/**/*.{ts,gts}', { eager: true }),
+    ...import.meta.glob('./services/*.ts', { eager: true }),
+  };
+}
+
+export function createSsrApp() {
+  return App.create({ ...config.APP, autoboot: false });
+}
+```
+
+### 4. Client entry (`app/entry.ts`)
+
+```ts
+import Application from './app.ts';
+import config from './config/environment.ts';
+import { installShoebox, cleanupSSRContent } from 'vite-ember-ssr/client';
+
+installShoebox();
+cleanupSSRContent();
+Application.create(config.APP);
+```
+
+### 5. Build
+
+```sh
+vite build                      # client → dist/client
+vite build --ssr app/app-ssr.ts # server → dist/server
+```
+
+### 6. Server
+
+Wire up `render()` in your server's catch-all route. See [examples/fastify.md](examples/fastify.md) for a complete Fastify example with dev and production modes.
+
+## API
+
+### `vite-ember-ssr/vite-plugin`
+
+```js
+import { emberSsr } from 'vite-ember-ssr/vite-plugin';
+```
+
+Single Vite plugin. Handles all SSR-related configuration:
+
+- `ssr.noExternal` for Ember ecosystem packages
+- Build output directories (`dist/client` and `dist/server`)
+- SSR build defaults (`target: 'node22'`, `sourcemap: true`, `minify: false`)
+- Writes `{"type": "module"}` to SSR output directory
+
+Options:
+
+```js
+emberSsr({
+  clientOutDir: 'dist/client',          // default
+  serverOutDir: 'dist/server',          // default
+  additionalNoExternal: ['my-addon'],   // extend built-in patterns
+})
+```
+
+### `vite-ember-ssr/server`
+
+```js
+import { render } from 'vite-ember-ssr/server';
+```
+
+- **`render({ url, template, createApp, shoebox? })`** — render an Ember app and assemble the final HTML. Returns `{ html, statusCode, error }`.
+
+Lower-level functions are also exported for advanced use:
+
+- **`renderEmberApp({ url, createApp, shoebox? })`** — render only, returns `{ head, body, statusCode, error }`.
+- **`assembleHTML(template, renderResult)`** — replace SSR markers in the HTML template.
+
+### `vite-ember-ssr/client`
+
+```js
+import { installShoebox, cleanupSSRContent, cleanupShoebox } from 'vite-ember-ssr/client';
+```
+
+- **`installShoebox()`** — replay server-captured fetch responses, auto-restores `fetch` when all entries consumed.
+- **`cleanupSSRContent()`** — remove SSR-rendered DOM nodes before client Ember boots.
+- **`cleanupShoebox()`** — manually restore original `fetch`.
+
+## Monorepo development
+
+This repo contains three packages:
+
+| Package | Description |
+|---|---|
+| `packages/vite-ember-ssr` | Core library |
+| `packages/test-app` | Ember test app |
+| `packages/test-server` | Fastify SSR server + test suites |
+
+```sh
+pnpm install
+pnpm dev          # dev server (Fastify + Vite middleware)
+pnpm build        # build library + test app
+pnpm demo         # build everything, start production server
+pnpm test         # vitest SSR tests
+pnpm test:browser # playwright browser tests
+pnpm test:all     # both
+```
+
+## Performance
+
+- Server startup: ~1s (no ember-cli build step)
+- First SSR render: ~3s (cold module loading)
+- Warm SSR render: ~24ms
+
+## License
+
+ISC

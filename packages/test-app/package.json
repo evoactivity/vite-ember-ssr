@@ -11,7 +11,7 @@
     "dev": "vite",
     "build": "vite build",
     "build:client": "vite build",
-    "build:server": "vite build --config vite.config.ssr.mjs",
+    "build:server": "vite build --ssr app/app-ssr.ts",
     "build:all": "pnpm build:client && pnpm build:server",
     "lint:types": "tsc --noEmit"
   },

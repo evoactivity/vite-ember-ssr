@@ -413,3 +413,43 @@ export function hasSSRMarkers(html: string): { head: boolean; body: boolean } {
     body: html.includes(SSR_BODY_MARKER),
   };
 }
+
+// ─── Convenience: Render + Assemble ──────────────────────────────────
+
+export interface SSRResult {
+  /** Final HTML string with SSR content injected */
+  html: string;
+  /** HTTP status code (200 by default) */
+  statusCode: number;
+  /** Any error that occurred during rendering */
+  error?: Error;
+}
+
+/**
+ * Renders an Ember app at the given URL and assembles the final HTML
+ * in a single call. Combines `renderEmberApp` and `assembleHTML`.
+ *
+ * @example
+ * ```js
+ * const { html, statusCode, error } = await render({
+ *   url: '/about',
+ *   template,
+ *   createApp: createSsrApp,
+ *   shoebox: true,
+ * });
+ * reply.code(statusCode).type('text/html').send(html);
+ * ```
+ */
+export async function render(
+  options: RenderOptions & { template: string },
+): Promise<SSRResult> {
+  const { template, ...renderOptions } = options;
+  const result = await renderEmberApp(renderOptions);
+  const html = assembleHTML(template, result);
+
+  return {
+    html,
+    statusCode: result.statusCode,
+    error: result.error,
+  };
+}

@@ -1,6 +1,6 @@
 {
   "name": "vite-ember-ssr",
-  "version": "0.1.0",
+  "version": "0.0.1",
   "description": "Vite plugin and SSR runtime for Ember.js applications",
   "type": "module",
   "exports": {
