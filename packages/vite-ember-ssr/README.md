@@ -115,7 +115,7 @@ vite build --ssr app/app-ssr.ts # server → dist/server
 
 ### 6. Server
 
-Wire up `render()` in your server's catch-all route. See [examples/fastify.md](examples/fastify.md) for a complete Fastify example with dev and production modes.
+Wire up `render()` in your server's catch-all route. See [examples/fastify.md](https://github.com/evoactivity/vite-ember-ssr/blob/main/examples/fastify.md) for a complete Fastify example with dev and production modes.
 
 Shoebox (fetch replay):
 
@@ -164,12 +164,13 @@ Lower-level functions are also exported for advanced use:
 ### `vite-ember-ssr/client`
 
 ```js
-import { installShoebox, cleanupSSRContent, cleanupShoebox } from 'vite-ember-ssr/client';
+import { installShoebox, cleanupSSRContent, cleanupShoebox, isSSRRendered } from 'vite-ember-ssr/client';
 ```
 
 - **`installShoebox()`** — replay server-captured fetch responses, auto-restores `fetch` when all entries consumed.
 - **`cleanupSSRContent()`** — remove SSR-rendered DOM nodes before client Ember boots.
 - **`cleanupShoebox()`** — manually restore original `fetch`.
+- **`isSSRRendered()`** — returns `true` if SSR boundary markers are present in the DOM. Useful for conditionally running client-side setup that should only happen on SSR-rendered pages.
 
 ## Monorepo development
 
@@ -199,4 +200,4 @@ pnpm test:all     # both
 
 ## License
 
-ISC
+MIT

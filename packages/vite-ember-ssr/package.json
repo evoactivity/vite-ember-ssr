@@ -1,8 +1,31 @@
 {
   "name": "vite-ember-ssr",
   "version": "0.0.1",
-  "description": "Vite plugin and SSR runtime for Ember.js applications",
+  "description": "Vite plugin and SSR runtime for Ember.js applications using HappyDOM",
   "type": "module",
+  "license": "MIT",
+  "author": "Liam Potter",
+  "repository": {
+    "type": "git",
+    "url": "git+https://github.com/evoactivity/vite-ember-ssr.git",
+    "directory": "packages/vite-ember-ssr"
+  },
+  "homepage": "https://github.com/evoactivity/vite-ember-ssr/tree/main/packages/vite-ember-ssr#readme",
+  "bugs": "https://github.com/evoactivity/vite-ember-ssr/issues",
+  "keywords": [
+    "vite",
+    "vite-plugin",
+    "ember",
+    "emberjs",
+    "ssr",
+    "server-side-rendering",
+    "happydom",
+    "embroider"
+  ],
+  "engines": {
+    "node": ">=22"
+  },
+  "sideEffects": false,
   "exports": {
     "./vite-plugin": {
       "types": "./dist/vite-plugin.d.ts",
@@ -19,11 +42,13 @@
   },
   "files": [
     "dist",
-    "src"
+    "src",
+    "LICENSE.md"
   ],
   "scripts": {
     "build": "tsc",
-    "dev": "tsc --watch"
+    "dev": "tsc --watch",
+    "prepublishOnly": "tsc"
   },
   "dependencies": {
     "happy-dom": "^17.4.4"
