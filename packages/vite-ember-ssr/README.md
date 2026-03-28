@@ -5,6 +5,33 @@
 
 Vite plugin and SSR runtime for Ember.js applications. Uses [HappyDOM](https://github.com/capricorn86/happy-dom) for server-side rendering — no FastBoot, no VM sandbox.
 
+## Quickstart (copy-paste)
+
+1. Install the package and required peers:
+
+```sh
+pnpm add -D vite-ember-ssr @embroider/vite ember-strict-application-resolver
+```
+
+2. Add the Vite plugin to `vite.config.mjs` (see full example below):
+
+3. Add SSR markers to `index.html`:
+
+```html
+<!-- VITE_EMBER_SSR_HEAD -->
+<!-- VITE_EMBER_SSR_BODY -->
+```
+
+4. Create `app/app-ssr.ts` (export a `createSsrApp` factory) and `app/entry.ts` (client boot that calls `installShoebox()` and `cleanupSSRContent()`).
+
+5. Build and run:
+
+```sh
+vite build                      # client → dist/client
+vite build --ssr app/app-ssr.ts # server → dist/server
+# use your server (see examples/fastify.md)
+```
+
 ## Architecture
 
 - **HappyDOM Window** provides a full per-request browser-like environment. Ember runs directly in the Node.js process with globals swapped per request.
@@ -14,9 +41,11 @@ Vite plugin and SSR runtime for Ember.js applications. Uses [HappyDOM](https://g
 
 ## Requirements
 
-- Compatless Ember app using `@embroider/vite` (the `ember()` plugin only)
-- [`ember-strict-application-resolver`](https://github.com/nicedayfor/ember-strict-application-resolver) instead of classic `ember-resolver`
-- Config as a direct ES module import (no `<meta>` tag, no `@embroider/config-meta-loader`)
+- Ember app built with Embroider in "compatless" mode (no `@embroider/compat`, no `ember-cli-build.js`, and no `classicEmberSupport()`).
+  - If you're unsure what this means: compatless apps rely on the new Embroider build pipeline. See Embroider docs for details and migration guidance.
+- `@embroider/vite` (use the `ember()` plugin)
+- `ember-strict-application-resolver` instead of `ember-resolver` (install with `pnpm add -D ember-strict-application-resolver`) — this library provides an ES-module friendly application resolver used by the SSR entry.
+- Your app's `config/environment` must be a direct ES module import (i.e. `import config from './config/environment.ts'`). Do not rely on `<meta>` config injection or `@embroider/config-meta-loader`.
 - Vite 6+
 - Node 22+
 
@@ -85,6 +114,12 @@ class App extends EmberApp {
 export function createSsrApp() {
   return App.create({ ...config.APP, autoboot: false });
 }
+
+Notes:
+- Place this file in your application package at `app/app-ssr.ts` (the SSR build references that path in examples).
+- `autoboot: false` prevents the Ember application from attempting to boot itself in the server environment; instead we call `Application.visit(url)` to drive rendering.
+- The `modules` map uses `import.meta.glob(..., { eager: true })` to provide the resolver with preloaded route/template/service modules — this mirrors how Embroider/Ember apps load modules at runtime in a static environment.
+- Keep the glob patterns broad enough to include your `routes`, `templates`, and `services` so the resolver can find everything the app needs during SSR.
 ```
 
 ### 4. Client entry (`app/entry.ts`)
@@ -109,6 +144,12 @@ vite build --ssr app/app-ssr.ts # server → dist/server
 ### 6. Server
 
 Wire up `render()` in your server's catch-all route. See [examples/fastify.md](examples/fastify.md) for a complete Fastify example with dev and production modes.
+
+Shoebox (fetch replay):
+
+- Pass `shoebox: true` to `render()` to capture `fetch` responses during SSR and serialize them into the rendered HTML. On the client call `installShoebox()` before boot to replay those responses and avoid duplicate requests.
+- Default: shoebox is opt-in. Use it when your app makes server-side fetch calls that the client would otherwise repeat on first load.
+- Caveats: embedding large API responses increases HTML size; do not serialize sensitive data into the shoebox.
 
 ## API
 
