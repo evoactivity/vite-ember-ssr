@@ -1,4 +1,5 @@
 import EmberApp from 'ember-strict-application-resolver';
+import '@warp-drive/ember/install';
 import PageTitleService from 'ember-page-title/services/page-title';
 import config from './config/environment.ts';
 import Router from './router.ts';
