@@ -3,16 +3,19 @@
 > [!WARNING]
 > **EXPERIMENTAL** — This project is in early development and targets **compatless** Ember apps only (no `@embroider/compat`, no `ember-cli-build.js`, no `classicEmberSupport()`). APIs will change. Do not use in production.
 
-Vite plugin and SSR runtime for Ember.js applications. Uses [HappyDOM](https://github.com/capricorn86/happy-dom) for server-side rendering — no FastBoot, no VM sandbox.
+Vite plugin and SSR/SSG runtime for Ember.js applications. Uses [HappyDOM](https://github.com/capricorn86/happy-dom) for server-side rendering — no FastBoot, no VM sandbox.
 
-See the Installation and Setup sections below for installation and copy‑paste integration snippets.
+Two modes are supported:
+
+- **SSR** (`emberSsr`) — server renders pages on each request at runtime. Requires a Node.js server.
+- **SSG** (`emberSsg`) — prerenders specified routes to static HTML files at build time. A single `vite build` produces deploy-ready files. No server required.
 
 ## Architecture
 
 - **HappyDOM Window** provides a full per-request browser-like environment. Ember runs directly in the Node.js process with globals swapped per request.
 - **`Application.visit(url)`** drives the entire render cycle server-side.
 - **No hydration yet** — the client boots normally and replaces SSR content. SSR provides the initial visual while JS loads.
-- **Shoebox** — fetch responses captured during SSR are serialized into the HTML and replayed on the client to avoid duplicate API requests.
+- **Shoebox** — fetch responses captured during SSR/SSG are serialized into the HTML and replayed on the client to avoid duplicate API requests.
 
 ## Requirements
 
@@ -29,7 +32,11 @@ pnpm add -D vite-ember-ssr
 
 ## Setup
 
-### 1. Vite config
+### SSR (Server-Side Rendering)
+
+Use `emberSsr` when you have a Node.js server that renders pages on each request.
+
+#### 1. Vite config
 
 ```js
 // vite.config.mjs
@@ -43,7 +50,7 @@ export default defineConfig({
 });
 ```
 
-### 2. HTML template
+#### 2. HTML template
 
 Add SSR markers to `index.html`:
 
@@ -61,7 +68,7 @@ Add SSR markers to `index.html`:
 </html>
 ```
 
-### 3. SSR entry (`app/app-ssr.ts`)
+#### 3. SSR entry (`app/app-ssr.ts`)
 
 Export a factory that creates the Ember app with `autoboot: false`:
 
@@ -84,7 +91,7 @@ export function createSsrApp() {
 }
 ```
 
-### 4. Client entry (`app/entry.ts`)
+#### 4. Client entry (`app/entry.ts`)
 
 ```ts
 import Application from './app.ts';
@@ -96,14 +103,14 @@ cleanupSSRContent();
 Application.create(config.APP);
 ```
 
-### 5. Build
+#### 5. Build
 
 ```sh
 vite build                      # client → dist/client
 vite build --ssr app/app-ssr.ts # server → dist/server
 ```
 
-### 6. Server
+#### 6. Server
 
 Wire up `render()` in your server's catch-all route. See [examples/fastify.md](https://github.com/evoactivity/vite-ember-ssr/blob/main/examples/fastify.md) for a complete Fastify example with dev and production modes.
 
@@ -113,15 +120,152 @@ Shoebox (fetch replay):
 - Default: shoebox is opt-in. Use it when your app makes server-side fetch calls that the client would otherwise repeat on first load.
 - Caveats: embedding large API responses increases HTML size; do not serialize sensitive data into the shoebox.
 
+### SSG (Static Site Generation)
+
+Use `emberSsg` when you want to prerender routes to static HTML files at build time. No server required — the output can be deployed to any static hosting (Netlify, Vercel, GitHub Pages, S3, etc.).
+
+A single `vite build` command:
+
+1. Builds the client assets (JS, CSS, HTML shell)
+2. Runs a second SSR build internally to produce a temporary server bundle
+3. Renders each specified route using HappyDOM
+4. Writes the resulting HTML files into the output directory
+5. Cleans up the temporary bundle
+
+#### 1. Vite config
+
+```js
+// vite.config.mjs
+import { defineConfig } from 'vite';
+import { extensions, ember } from '@embroider/vite';
+import { babel } from '@rollup/plugin-babel';
+import { emberSsg } from 'vite-ember-ssr/vite-plugin';
+
+export default defineConfig({
+  plugins: [
+    ember(),
+    babel({ babelHelpers: 'runtime', extensions }),
+    emberSsg({
+      routes: ['index', 'about', 'contact', 'pokemon/charmander'],
+    }),
+  ],
+});
+```
+
+#### 2. HTML template
+
+Same as SSR — add markers to `index.html`:
+
+```html
+<!DOCTYPE html>
+<html>
+  <head>
+    <meta charset="utf-8" />
+    <!-- VITE_EMBER_SSR_HEAD -->
+  </head>
+  <body>
+    <!-- VITE_EMBER_SSR_BODY -->
+    <script type="module" src="/app/entry.ts"></script>
+  </body>
+</html>
+```
+
+#### 3. SSR entry (`app/app-ssr.ts`)
+
+Same as SSR — export a `createSsrApp` factory function. See the SSR section above.
+
+#### 4. Client entry (`app/entry.ts`)
+
+Same as SSR — call `installShoebox()` and `cleanupSSRContent()` before boot. See the SSR section above.
+
+#### 5. Build
+
+```sh
+vite build
+```
+
+That's it. The output directory (default: `dist/`) contains deploy-ready static files:
+
+```
+dist/
+  index.html              ← prerendered index route
+  about/index.html        ← prerendered about route
+  contact/index.html      ← prerendered contact route
+  pokemon/
+    charmander/index.html ← prerendered nested route
+  assets/
+    main-abc123.js        ← client JS bundle
+    main-abc123.css       ← client CSS bundle
+```
+
+#### 6. Deploy
+
+Serve the `dist/` directory with any static file server. No Node.js runtime needed.
+
+```sh
+# Local preview
+npx http-server dist
+
+# Or deploy to any static host
+```
+
+#### Route format
+
+Routes are specified as Ember route names (without leading slashes):
+
+- `'index'` → `dist/index.html`
+- `'about'` → `dist/about/index.html`
+- `'pokemon'` → `dist/pokemon/index.html`
+- `'pokemon/charmander'` → `dist/pokemon/charmander/index.html`
+
+#### Options
+
+```js
+emberSsg({
+  // Required: routes to prerender
+  routes: ['index', 'about', 'contact'],
+
+  // SSR entry module (default: 'app/app-ssr.ts')
+  ssrEntry: 'app/app-ssr.ts',
+
+  // Enable shoebox fetch replay (default: true)
+  // When true, fetch responses from model hooks are serialized into the HTML
+  // so the client doesn't re-fetch on boot
+  shoebox: true,
+
+  // Output directory (default: 'dist')
+  outDir: 'dist',
+
+  // Additional packages for ssr.noExternal
+  additionalNoExternal: ['my-addon'],
+});
+```
+
+#### SSG vs SSR: when to use which
+
+|                    | SSG (`emberSsg`)             | SSR (`emberSsr`)                                                                |
+| ------------------ | ---------------------------- | ------------------------------------------------------------------------------- |
+| **Rendering**      | Build time                   | Request time                                                                    |
+| **Server**         | Not required                 | Node.js server required                                                         |
+| **Build command**  | `vite build`                 | `vite build` + `vite build --ssr`                                               |
+| **Deploy**         | Any static host              | Node.js hosting                                                                 |
+| **Dynamic routes** | Must enumerate at build time | Any URL handled at runtime                                                      |
+| **Data freshness** | Stale until next build       | Fresh on every request                                                          |
+| **Best for**       | Marketing sites, docs, blogs | Apps with frequently changing content, dynamic per-request data, real-time data |
+
+You can use both in the same project — `emberSsg` for public pages and `emberSsr` for dynamic routes — though they require separate Vite configs.
+
 ## API
 
 ### `vite-ember-ssr/vite-plugin`
 
 ```js
-import { emberSsr } from 'vite-ember-ssr/vite-plugin';
+import { emberSsr, emberSsg } from 'vite-ember-ssr/vite-plugin';
 ```
 
-Single Vite plugin. Handles all SSR-related configuration:
+#### `emberSsr(options?)`
+
+Vite plugin for runtime SSR. Handles all SSR-related configuration:
 
 - `ssr.noExternal` for Ember ecosystem packages
 - Build output directories (`dist/client` and `dist/server`)
@@ -135,6 +279,22 @@ emberSsr({
   clientOutDir: 'dist/client', // default
   serverOutDir: 'dist/server', // default
   additionalNoExternal: ['my-addon'], // extend built-in patterns
+});
+```
+
+#### `emberSsg(options)`
+
+Vite plugin for static site generation. Prerenders specified routes to HTML files at build time with a single `vite build`. See the [SSG setup section](#ssg-static-site-generation) for usage.
+
+Options:
+
+```js
+emberSsg({
+  routes: ['index', 'about'], // required: routes to prerender
+  ssrEntry: 'app/app-ssr.ts', // default: SSR entry module path
+  shoebox: true, // default: serialize fetch responses into HTML
+  outDir: 'dist', // default: output directory
+  additionalNoExternal: [], // extend built-in ssr.noExternal patterns
 });
 ```
 
@@ -164,13 +324,14 @@ import { installShoebox, cleanupSSRContent, cleanupShoebox, isSSRRendered } from
 
 ## Monorepo development
 
-This repo contains three packages:
+This repo contains four packages:
 
-| Package                   | Description                      |
-| ------------------------- | -------------------------------- |
-| `packages/vite-ember-ssr` | Core library                     |
-| `packages/test-app`       | Ember test app                   |
-| `packages/test-server`    | Fastify SSR server + test suites |
+| Package                   | Description                |
+| ------------------------- | -------------------------- |
+| `packages/vite-ember-ssr` | Core library + test suites |
+| `packages/test-app`       | Ember test app (SSR)       |
+| `packages/test-app-ssg`   | Ember test app (SSG)       |
+| `packages/test-server`    | Fastify SSR server         |
 
 ```sh
 pnpm install
