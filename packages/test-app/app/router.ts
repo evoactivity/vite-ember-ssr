@@ -12,4 +12,7 @@ Router.map(function () {
   this.route('pokemon-fetch', function () {
     this.route('show', { path: '/:name' });
   });
+  this.route('pokemon-warp-drive', function () {
+    this.route('show', { path: '/:name' });
+  });
 });

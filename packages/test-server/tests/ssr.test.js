@@ -327,3 +327,36 @@ describe('SSR with fetch in route model hooks', () => {
     expect(html).not.toContain('data-component="pokemon-list"');
   });
 });
+
+// ─── WarpDrive pokemon route (SSR renders loading state) ─────────────
+
+describe('SSR with WarpDrive pokemon route', () => {
+  it('renders the pokemon-warp-drive route with loading state', async () => {
+    const { html, rendered } = await renderRoute('/pokemon-warp-drive');
+
+    expect(rendered.statusCode).toBe(200);
+    expect(rendered.error).toBeUndefined();
+
+    // Route layout present
+    expect(html).toContain('data-route="pokemon-warp-drive"');
+    expect(html).toContain('<h1>Pokémon (WarpDrive)</h1>');
+
+    // <Request> component shows loading block during SSR
+    // (request is in-flight, not yet resolved)
+    expect(html).toContain('data-loading');
+    expect(html).toContain('Loading Pokémon...');
+  });
+
+  it('renders the pokemon-warp-drive show route with loading state', async () => {
+    const { html, rendered } = await renderRoute('/pokemon-warp-drive/pikachu');
+
+    expect(rendered.statusCode).toBe(200);
+    expect(rendered.error).toBeUndefined();
+
+    // Parent route present
+    expect(html).toContain('data-route="pokemon-warp-drive"');
+
+    // Detail shows loading state during SSR
+    expect(html).toContain('Loading');
+  });
+});
