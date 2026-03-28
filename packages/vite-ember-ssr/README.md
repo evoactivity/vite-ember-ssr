@@ -10,6 +10,8 @@ Two modes are supported:
 - **SSR** (`emberSsr`) — server renders pages on each request at runtime. Requires a Node.js server.
 - **SSG** (`emberSsg`) — prerenders specified routes to static HTML files at build time. A single `vite build` produces deploy-ready files. No server required.
 
+Both plugins can be used together in the same Vite config for a **combined SSR + SSG** setup — prerender known static routes at build time while falling back to dynamic SSR for everything else.
+
 ## Architecture
 
 - **HappyDOM Window** provides a full per-request browser-like environment. Ember runs directly in the Node.js process with globals swapped per request.
@@ -253,7 +255,103 @@ emberSsg({
 | **Data freshness** | Stale until next build       | Fresh on every request                                                          |
 | **Best for**       | Marketing sites, docs, blogs | Apps with frequently changing content, dynamic per-request data, real-time data |
 
-You can use both in the same project — `emberSsg` for public pages and `emberSsr` for dynamic routes — though they require separate Vite configs.
+### Combined SSR + SSG
+
+Use both plugins together to prerender known static routes at build time while keeping dynamic SSR for everything else. The SSG plugin automatically detects `emberSsr` and defers to its output directory — prerendered files land in `dist/client/` alongside client assets.
+
+#### How it works
+
+During `vite build`, `emberSsg` detects that `emberSsr` is present and:
+
+1. Copies `dist/client/index.html` to `dist/client/_template.html` (preserving the SSR markers)
+2. Prerenders each route and writes the resulting HTML files into `dist/client/`
+3. If `'index'` is in your routes list, `index.html` is overwritten with the prerendered index route
+
+Your production server reads `_template.html` as the SSR template for dynamic rendering, while prerendered routes are served directly as static files.
+
+#### 1. Vite config
+
+```js
+// vite.config.mjs
+import { defineConfig } from 'vite';
+import { extensions, ember } from '@embroider/vite';
+import { babel } from '@rollup/plugin-babel';
+import { emberSsr, emberSsg } from 'vite-ember-ssr/vite-plugin';
+
+export default defineConfig({
+  plugins: [
+    ember(),
+    babel({ babelHelpers: 'runtime', extensions }),
+    emberSsr(),
+    emberSsg({
+      routes: ['index', 'about', 'contact'],
+    }),
+  ],
+});
+```
+
+#### 2. Build
+
+```sh
+vite build                      # client + SSG prerender → dist/client
+vite build --ssr app/app-ssr.ts # server bundle → dist/server
+```
+
+Output structure:
+
+```
+dist/
+  client/
+    _template.html            ← original index.html with SSR markers (for dynamic SSR)
+    index.html                ← prerendered
+    about/index.html          ← prerendered
+    contact/index.html        ← prerendered
+    assets/
+      main-abc123.js
+      main-abc123.css
+  server/
+    app-ssr.mjs               ← SSR server bundle
+    package.json
+```
+
+#### 3. Server
+
+Your server checks for a prerendered static file first, then falls back to dynamic SSR using `_template.html`. See [examples/fastify-combined.md](https://github.com/evoactivity/vite-ember-ssr/blob/main/examples/fastify-combined.md) for a complete Fastify example.
+
+```js
+import { readFile, access } from 'node:fs/promises';
+import { render } from 'vite-ember-ssr/server';
+
+// Load _template.html once at startup — it contains the SSR markers
+const ssrTemplate = await readFile('dist/client/_template.html', 'utf-8');
+
+// In your catch-all route handler:
+app.get('*', async (request, reply) => {
+  const url = request.url;
+
+  // 1. Try serving a prerendered file
+  const staticPath = resolveStaticFile(clientDir, url);
+  try {
+    await access(staticPath);
+    const html = await readFile(staticPath, 'utf-8');
+    return reply.code(200).type('text/html').send(html);
+  } catch {
+    // No prerendered file — fall through
+  }
+
+  // 2. Fall back to dynamic SSR
+  const { html, statusCode } = await render({
+    url,
+    template: ssrTemplate,
+    createApp: createSsrApp,
+    shoebox: true,
+  });
+
+  return reply.code(statusCode).type('text/html').send(html);
+});
+```
+
+Prerendered routes are served instantly as static files (no Node.js rendering cost). All other routes are rendered on-demand by the SSR server.
 
 ## API
 
@@ -293,7 +391,7 @@ emberSsg({
   routes: ['index', 'about'], // required: routes to prerender
   ssrEntry: 'app/app-ssr.ts', // default: SSR entry module path
   shoebox: true, // default: serialize fetch responses into HTML
-  outDir: 'dist', // default: output directory
+  outDir: 'dist', // default: output directory (ignored when combined with emberSsr)
   additionalNoExternal: [], // extend built-in ssr.noExternal patterns
 });
 ```
@@ -324,14 +422,15 @@ import { installShoebox, cleanupSSRContent, cleanupShoebox, isSSRRendered } from
 
 ## Monorepo development
 
-This repo contains four packages:
+This repo contains five packages:
 
-| Package                   | Description                |
-| ------------------------- | -------------------------- |
-| `packages/vite-ember-ssr` | Core library + test suites |
-| `packages/test-app`       | Ember test app (SSR)       |
-| `packages/test-app-ssg`   | Ember test app (SSG)       |
-| `packages/test-server`    | Fastify SSR server         |
+| Package                       | Description                     |
+| ----------------------------- | ------------------------------- |
+| `packages/vite-ember-ssr`     | Core library + test suites      |
+| `packages/test-app`           | Ember test app (SSR)            |
+| `packages/test-app-ssg`       | Ember test app (SSG)            |
+| `packages/test-app-combined`  | Ember test app (SSR + SSG)      |
+| `packages/test-server`        | Fastify SSR server              |
 
 ```sh
 pnpm install

@@ -33,6 +33,14 @@ export default defineConfig({
         baseURL: 'http://localhost:4211',
       },
     },
+    {
+      name: 'combined',
+      testMatch: 'combined.browser.js',
+      use: {
+        ...devices['Desktop Chrome'],
+        baseURL: 'http://localhost:4212',
+      },
+    },
   ],
   webServer: [
     {
@@ -47,6 +55,13 @@ export default defineConfig({
       port: 4211,
       reuseExistingServer: false,
       timeout: 30_000,
+    },
+    {
+      command: `PORT=4212 node ${resolve(testServerDir, 'combined-server.js')}`,
+      port: 4212,
+      reuseExistingServer: false,
+      timeout: 30_000,
+      cwd: testServerDir,
     },
   ],
 });

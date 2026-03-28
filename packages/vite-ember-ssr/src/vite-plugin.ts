@@ -1,6 +1,6 @@
-import type { Plugin, ResolvedConfig, UserConfig } from 'vite';
+import type { Plugin, PluginOption, ResolvedConfig, UserConfig } from 'vite';
 import { join, dirname } from 'node:path';
-import { mkdir, writeFile, readFile, rm } from 'node:fs/promises';
+import { mkdir, writeFile, readFile, rm, copyFile } from 'node:fs/promises';
 import { pathToFileURL } from 'node:url';
 
 export const SSR_HEAD_MARKER = '<!-- VITE_EMBER_SSR_HEAD -->';
@@ -20,6 +20,17 @@ const EMBER_SSR_NO_EXTERNAL: (RegExp | string)[] = [
   /^ember-/,
   'decorator-transforms',
 ];
+
+/**
+ * Flatten and filter a Vite plugins array, which may contain nested arrays,
+ * falsy values, and Promise-wrapped entries.
+ */
+function flatPlugins(plugins: PluginOption[] | undefined): Plugin[] {
+  if (!plugins) return [];
+  return (plugins as unknown[]).flat(Infinity).filter(
+    (p): p is Plugin => p != null && typeof p === 'object' && 'name' in p,
+  );
+}
 
 export interface EmberSsrPluginOptions {
   /**
@@ -64,6 +75,13 @@ export function emberSsr(options: EmberSsrPluginOptions = {}): Plugin {
         ...(options.additionalNoExternal ?? []),
       ];
 
+      // During the SSG child build, only provide ssr.noExternal —
+      // don't override build.outDir or other build settings
+      // (the SSG plugin sets them explicitly via inline config).
+      if (process.env.__VITE_EMBER_SSG_CHILD__) {
+        return { ssr: { noExternal } };
+      }
+
       if (env.isSsrBuild) {
         return {
           ssr: { noExternal },
@@ -91,6 +109,9 @@ export function emberSsr(options: EmberSsrPluginOptions = {}): Plugin {
     async closeBundle() {
       // Only write package.json for SSR builds
       if (!resolvedConfig.build.ssr) return;
+
+      // Don't interfere with the SSG child build's temp directory
+      if (process.env.__VITE_EMBER_SSG_CHILD__) return;
 
       const outDir = join(resolvedConfig.root, resolvedConfig.build.outDir);
       const targetPath = join(outDir, 'package.json');
@@ -178,16 +199,21 @@ export function emberSsg(options: EmberSsgPluginOptions): Plugin {
     routes,
     ssrEntry = 'app/app-ssr.ts',
     shoebox = true,
-    outDir = 'dist',
     additionalNoExternal = [],
   } = options;
 
+  // Track whether the user explicitly provided outDir
+  const explicitOutDir = options.outDir;
+
   let resolvedConfig: ResolvedConfig;
+
+  // Whether emberSsr is also registered — detected in config() hook
+  let isCombined = false;
 
   return {
     name: 'vite-ember-ssg',
 
-    config(): UserConfig {
+    config(userConfig): UserConfig {
       const noExternal = [
         ...EMBER_SSR_NO_EXTERNAL,
         ...additionalNoExternal,
@@ -199,11 +225,22 @@ export function emberSsg(options: EmberSsgPluginOptions): Plugin {
         return { ssr: { noExternal } };
       }
 
+      // Detect if emberSsr is also registered in this config.
+      // When combined, defer build.outDir to emberSsr so that
+      // prerendered files land in the SSR client directory.
+      isCombined = flatPlugins(userConfig.plugins).some(
+        (p) => p.name === 'vite-ember-ssr',
+      );
+
+      // Only set outDir when:
+      // - the user explicitly passed outDir to emberSsg, OR
+      // - emberSsr is NOT present (standalone SSG mode, default 'dist')
+      const outDir =
+        explicitOutDir ?? (isCombined ? undefined : 'dist');
+
       return {
         ssr: { noExternal },
-        build: {
-          outDir,
-        },
+        ...(outDir != null ? { build: { outDir } } : {}),
       };
     },
 
@@ -238,6 +275,17 @@ export function emberSsg(options: EmberSsgPluginOptions): Plugin {
           `[vite-ember-ssg] Failed to read template at ${templatePath}.`,
         );
         throw e;
+      }
+
+      // When combined with emberSsr, preserve the original index.html
+      // as _template.html before prerendering overwrites it. The
+      // production server reads _template.html for dynamic SSR rendering.
+      if (isCombined) {
+        const savedTemplatePath = join(clientDir, '_template.html');
+        await copyFile(templatePath, savedTemplatePath);
+        console.log(
+          `  [vite-ember-ssg] Saved SSR template → ${savedTemplatePath.replace(root + '/', '')}`,
+        );
       }
 
       // ── Step 1: Build the SSR bundle ────────────────────────────
