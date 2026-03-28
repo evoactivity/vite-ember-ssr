@@ -328,10 +328,10 @@ describe('SSR with fetch in route model hooks', () => {
   });
 });
 
-// ─── WarpDrive pokemon route (SSR renders loading state) ─────────────
+// ─── WarpDrive pokemon route (SSR with awaited request) ──────────────
 
 describe('SSR with WarpDrive pokemon route', () => {
-  it('renders the pokemon-warp-drive route with loading state', async () => {
+  it('renders the pokemon-warp-drive list with fetched data', async () => {
     const { html, rendered } = await renderRoute('/pokemon-warp-drive');
 
     expect(rendered.statusCode).toBe(200);
@@ -341,22 +341,37 @@ describe('SSR with WarpDrive pokemon route', () => {
     expect(html).toContain('data-route="pokemon-warp-drive"');
     expect(html).toContain('<h1>Pokémon (WarpDrive)</h1>');
 
-    // <Request> component shows loading block during SSR
-    // (request is in-flight, not yet resolved)
-    expect(html).toContain('data-loading');
-    expect(html).toContain('Loading Pokémon...');
-  });
+    // Request was awaited in model hook, so <Request> renders :content block
+    expect(html).toContain('data-component="pokemon-list"');
+    expect(html).toContain('data-pokemon="bulbasaur"');
+    expect(html).toContain('data-pokemon="charmander"');
+    expect(html).toContain('data-pokemon="squirtle"');
 
-  it('renders the pokemon-warp-drive show route with loading state', async () => {
+    // Should NOT be in loading state
+    expect(html).not.toContain('data-loading');
+
+    // Links to detail pages
+    expect(html).toContain('href="/pokemon-warp-drive/bulbasaur"');
+  }, 15_000);
+
+  it('renders a pokemon-warp-drive detail page with fetched data', async () => {
     const { html, rendered } = await renderRoute('/pokemon-warp-drive/pikachu');
 
     expect(rendered.statusCode).toBe(200);
     expect(rendered.error).toBeUndefined();
 
-    // Parent route present
+    // Parent route present with list
     expect(html).toContain('data-route="pokemon-warp-drive"');
+    expect(html).toContain('data-component="pokemon-list"');
 
-    // Detail shows loading state during SSR
-    expect(html).toContain('Loading');
-  });
+    // Detail view with fetched data
+    expect(html).toContain('data-route="pokemon-warp-drive.show"');
+    expect(html).toContain('data-pokemon-name="pikachu"');
+    expect(html).toContain('<h2>pikachu</h2>');
+    expect(html).toContain('data-type="electric"');
+    expect(html).toContain('data-sprite');
+
+    // Should NOT be in loading state
+    expect(html).not.toContain('data-loading');
+  }, 15_000);
 });

@@ -5,11 +5,17 @@ import type Store from '../../services/store.ts';
 export default class PokemonWarpDriveShowRoute extends Route {
   @service declare store: Store;
 
-  model(params: { name: string }) {
-    return {
-      request: this.store.request({
-        url: `https://pokeapi.co/api/v2/pokemon/${params.name}`,
-      }),
-    };
+  async model(params: { name: string }) {
+    const request = this.store.request({
+      url: `https://pokeapi.co/api/v2/pokemon/${params.name}`,
+    });
+
+    // During SSR, await so the HTML includes actual content.
+    // On the client, let <Request> handle it reactively.
+    if (import.meta.env.SSR) {
+      await request;
+    }
+
+    return { request };
   }
 }
