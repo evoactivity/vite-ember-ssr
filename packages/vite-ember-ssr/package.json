@@ -1,6 +1,6 @@
 {
   "name": "vite-ember-ssr",
-  "version": "0.1.0-alpha.0",
+  "version": "0.1.0-alpha.1",
   "description": "Vite plugin and SSR runtime for Ember.js applications using HappyDOM",
   "type": "module",
   "license": "MIT",
