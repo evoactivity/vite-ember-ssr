@@ -1,12 +1,14 @@
 import { pageTitle } from 'ember-page-title';
-import { WelcomePage } from 'ember-welcome-page';
+import testLogo from '../assets/test-logo.png';
 
 <template>
   {{pageTitle "TestApp"}}
 
   {{outlet}}
 
-  {{! The following component displays Ember's default welcome message. }}
-  <WelcomePage @extension="gts" />
-  {{! Feel free to remove this! }}
+  <main>
+    <h1>vite-ember-ssr</h1>
+    <p>Server-side rendered Ember application.</p>
+    <img src={{testLogo}} alt="Test logo" width="64" height="64" />
+  </main>
 </template>

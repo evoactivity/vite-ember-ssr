@@ -26,7 +26,7 @@
     "dev": "tsc --watch"
   },
   "dependencies": {
-    "happydom": "^17.4.4"
+    "happy-dom": "^17.4.4"
   },
   "peerDependencies": {
     "vite": "^6.0.0 || ^7.0.0"
