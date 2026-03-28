@@ -92,6 +92,90 @@ importers:
         specifier: workspace:*
         version: link:../vite-ember-ssr
 
+  packages/test-app-ssg:
+    devDependencies:
+      '@babel/core':
+        specifier: ^7.29.0
+        version: 7.29.0
+      '@babel/plugin-transform-runtime':
+        specifier: ^7.29.0
+        version: 7.29.0(@babel/core@7.29.0)
+      '@babel/plugin-transform-typescript':
+        specifier: ^7.28.6
+        version: 7.28.6(@babel/core@7.29.0)
+      '@babel/runtime':
+        specifier: ^7.28.6
+        version: 7.29.2
+      '@ember/test-helpers':
+        specifier: ^5.4.1
+        version: 5.4.1(@babel/core@7.29.0)(@glint/template@1.7.7)
+      '@embroider/core':
+        specifier: ^4.4.3
+        version: 4.4.7(@glint/template@1.7.7)
+      '@embroider/macros':
+        specifier: ^1.19.7
+        version: 1.20.2(@babel/core@7.29.0)(@glint/template@1.7.7)
+      '@embroider/router':
+        specifier: ^3.0.6
+        version: 3.0.6(@babel/core@7.29.0)(@embroider/core@4.4.7(@glint/template@1.7.7))(@glint/template@1.7.7)
+      '@embroider/vite':
+        specifier: ^1.5.2
+        version: 1.7.1(@embroider/core@4.4.7(@glint/template@1.7.7))(@glint/template@1.7.7)(vite@7.3.1(@types/node@25.5.0)(jiti@2.6.1)(terser@5.46.1)(tsx@4.21.0))
+      '@glimmer/component':
+        specifier: ^2.0.0
+        version: 2.0.0
+      '@rollup/plugin-babel':
+        specifier: ^6.1.0
+        version: 6.1.0(@babel/core@7.29.0)(rollup@4.60.0)
+      '@warp-drive/core':
+        specifier: 5.8.1
+        version: 5.8.1(@babel/core@7.29.0)(@glint/template@1.7.7)
+      '@warp-drive/ember':
+        specifier: 5.8.1
+        version: 5.8.1(@babel/core@7.29.0)(@ember/test-waiters@4.1.1(@babel/core@7.29.0)(@glint/template@1.7.7))(@glint/template@1.7.7)
+      '@warp-drive/json-api':
+        specifier: 5.8.1
+        version: 5.8.1(@babel/core@7.29.0)(@glint/template@1.7.7)(@warp-drive/core@5.8.1(@babel/core@7.29.0)(@glint/template@1.7.7))
+      '@warp-drive/legacy':
+        specifier: 5.8.1
+        version: 5.8.1(@babel/core@7.29.0)(@glint/template@1.7.7)(@warp-drive/core@5.8.1(@babel/core@7.29.0)(@glint/template@1.7.7))(@warp-drive/utilities@5.8.1(@babel/core@7.29.0)(@glint/template@1.7.7)(@warp-drive/core@5.8.1(@babel/core@7.29.0)(@glint/template@1.7.7)))
+      '@warp-drive/utilities':
+        specifier: 5.8.1
+        version: 5.8.1(@babel/core@7.29.0)(@glint/template@1.7.7)(@warp-drive/core@5.8.1(@babel/core@7.29.0)(@glint/template@1.7.7))
+      babel-plugin-ember-template-compilation:
+        specifier: ^3.1.0
+        version: 3.1.0
+      decorator-transforms:
+        specifier: ^2.3.1
+        version: 2.3.1(@babel/core@7.29.0)
+      ember-modifier:
+        specifier: ^4.3.0
+        version: 4.3.0(@babel/core@7.29.0)
+      ember-page-title:
+        specifier: ^9.0.3
+        version: 9.0.3
+      ember-resolver:
+        specifier: ^13.1.1
+        version: 13.2.0
+      ember-source:
+        specifier: ~6.11.0
+        version: 6.11.1(@glimmer/component@2.0.0)(rsvp@4.8.5)
+      ember-strict-application-resolver:
+        specifier: ^0.1.1
+        version: 0.1.1(@babel/core@7.29.0)
+      ember-welcome-page:
+        specifier: ^8.0.5
+        version: 8.0.5(@babel/core@7.29.0)
+      typescript:
+        specifier: ^5.9.3
+        version: 5.9.3
+      vite:
+        specifier: ^7.3.1
+        version: 7.3.1(@types/node@25.5.0)(jiti@2.6.1)(terser@5.46.1)(tsx@4.21.0)
+      vite-ember-ssr:
+        specifier: workspace:*
+        version: link:../vite-ember-ssr
+
   packages/test-server:
     dependencies:
       '@fastify/compress':
