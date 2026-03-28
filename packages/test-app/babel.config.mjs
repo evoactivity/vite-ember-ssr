@@ -1,5 +1,6 @@
 import { dirname } from 'node:path';
 import { fileURLToPath } from 'node:url';
+import { setConfig } from '@warp-drive/core/build-config';
 import { buildMacros } from '@embroider/macros/babel';
 
 const __filename = fileURLToPath(import.meta.url);
@@ -7,6 +8,10 @@ const __filename = fileURLToPath(import.meta.url);
 const macros = buildMacros({
   configure: (config) => {
     config.setGlobalConfig(__filename, '@embroider/core', { active: true });
+    setConfig(config, {
+      // for universal apps this MUST be at least 5.6
+      compatWith: '5.6',
+    });
   },
 });
 

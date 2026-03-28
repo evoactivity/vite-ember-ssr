@@ -26,6 +26,7 @@ export default defineConfig({
       /^@ember\//,
       /^@glimmer\//,
       /^@embroider\//,
+      /^@warp-drive\//,
       /^ember-/,
       'decorator-transforms',
     ],

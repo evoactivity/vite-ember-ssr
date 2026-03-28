@@ -1,5 +1,5 @@
 <template>
-  <div data-route="pokemon.show" data-pokemon-name={{@model.name}}>
+  <div data-route="pokemon-fetch.show" data-pokemon-name={{@model.name}}>
     <h2>{{@model.name}}</h2>
 
     {{#if @model.sprite}}

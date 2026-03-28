@@ -5,9 +5,16 @@
  * disabled so the server can control boot timing via app.visit().
  */
 import EmberApp from 'ember-strict-application-resolver';
+import '@warp-drive/ember/install';
+import { setBuildURLConfig } from '@warp-drive/utilities/json-api';
 import PageTitleService from 'ember-page-title/services/page-title';
 import config from './config/environment.ts';
 import Router from './router.ts';
+
+setBuildURLConfig({
+  host: 'https://pokeapi.co',
+  namespace: 'api/v2',
+});
 
 class App extends EmberApp {
   modulePrefix = config.modulePrefix;

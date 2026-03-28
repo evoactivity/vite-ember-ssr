@@ -245,15 +245,15 @@ describe('SSR renders each route independently', () => {
 // ─── Fetch in route model hooks ──────────────────────────────────────
 
 describe('SSR with fetch in route model hooks', () => {
-  it('renders the pokemon list at /pokemon with fetched data', async () => {
-    const { html, rendered } = await renderRoute('/pokemon');
+  it('renders the pokemon list at /pokemon-fetch with fetched data', async () => {
+    const { html, rendered } = await renderRoute('/pokemon-fetch');
 
     expect(rendered.statusCode).toBe(200);
     expect(rendered.error).toBeUndefined();
 
     // Route layout
-    expect(html).toContain('data-route="pokemon"');
-    expect(html).toContain('<h1>Pokémon</h1>');
+    expect(html).toContain('data-route="pokemon-fetch"');
+    expect(html).toContain('<h1>Pokémon (Fetch)</h1>');
     expect(html).toContain('data-component="pokemon-list"');
 
     // Should have 12 pokemon from the API
@@ -263,18 +263,18 @@ describe('SSR with fetch in route model hooks', () => {
     expect(html).toContain('data-pokemon="squirtle"');
 
     // Each pokemon should have a link to its detail page
-    expect(html).toContain('href="/pokemon/bulbasaur"');
-    expect(html).toContain('href="/pokemon/charmander"');
+    expect(html).toContain('href="/pokemon-fetch/bulbasaur"');
+    expect(html).toContain('href="/pokemon-fetch/charmander"');
   }, 15_000);
 
   it('renders a pokemon detail page with fetched data', async () => {
-    const { html, rendered } = await renderRoute('/pokemon/pikachu');
+    const { html, rendered } = await renderRoute('/pokemon-fetch/pikachu');
 
     expect(rendered.statusCode).toBe(200);
     expect(rendered.error).toBeUndefined();
 
     // Detail view
-    expect(html).toContain('data-route="pokemon.show"');
+    expect(html).toContain('data-route="pokemon-fetch.show"');
     expect(html).toContain('data-pokemon-name="pikachu"');
     expect(html).toContain('<h2>pikachu</h2>');
 
@@ -294,7 +294,7 @@ describe('SSR with fetch in route model hooks', () => {
   }, 15_000);
 
   it('renders the parent pokemon list alongside the detail view', async () => {
-    const { html } = await renderRoute('/pokemon/pikachu');
+    const { html } = await renderRoute('/pokemon-fetch/pikachu');
 
     // Parent route (pokemon list) should also be rendered
     expect(html).toContain('data-component="pokemon-list"');
@@ -305,8 +305,8 @@ describe('SSR with fetch in route model hooks', () => {
   }, 15_000);
 
   it('renders different pokemon detail pages correctly', async () => {
-    const pikachu = await renderRoute('/pokemon/pikachu');
-    const charmander = await renderRoute('/pokemon/charmander');
+    const pikachu = await renderRoute('/pokemon-fetch/pikachu');
+    const charmander = await renderRoute('/pokemon-fetch/charmander');
 
     // Different pokemon
     expect(pikachu.html).toContain('data-pokemon-name="pikachu"');
@@ -323,7 +323,55 @@ describe('SSR with fetch in route model hooks', () => {
   it('does not show pokemon data on non-pokemon routes', async () => {
     const { html } = await renderRoute('/');
 
-    expect(html).not.toContain('data-route="pokemon"');
+    expect(html).not.toContain('data-route="pokemon-fetch"');
     expect(html).not.toContain('data-component="pokemon-list"');
   });
+});
+
+// ─── WarpDrive pokemon route (SSR with awaited request) ──────────────
+
+describe('SSR with WarpDrive pokemon route', () => {
+  it('renders the pokemon-warp-drive list with fetched data', async () => {
+    const { html, rendered } = await renderRoute('/pokemon-warp-drive');
+
+    expect(rendered.statusCode).toBe(200);
+    expect(rendered.error).toBeUndefined();
+
+    // Route layout present
+    expect(html).toContain('data-route="pokemon-warp-drive"');
+    expect(html).toContain('<h1>Pokémon (WarpDrive)</h1>');
+
+    // Request was awaited in model hook, so <Request> renders :content block
+    expect(html).toContain('data-component="pokemon-list"');
+    expect(html).toContain('data-pokemon="bulbasaur"');
+    expect(html).toContain('data-pokemon="charmander"');
+    expect(html).toContain('data-pokemon="squirtle"');
+
+    // Should NOT be in loading state
+    expect(html).not.toContain('data-loading');
+
+    // Links to detail pages
+    expect(html).toContain('href="/pokemon-warp-drive/bulbasaur"');
+  }, 15_000);
+
+  it('renders a pokemon-warp-drive detail page with fetched data', async () => {
+    const { html, rendered } = await renderRoute('/pokemon-warp-drive/pikachu');
+
+    expect(rendered.statusCode).toBe(200);
+    expect(rendered.error).toBeUndefined();
+
+    // Parent route present with list
+    expect(html).toContain('data-route="pokemon-warp-drive"');
+    expect(html).toContain('data-component="pokemon-list"');
+
+    // Detail view with fetched data
+    expect(html).toContain('data-route="pokemon-warp-drive.show"');
+    expect(html).toContain('data-pokemon-name="pikachu"');
+    expect(html).toContain('<h2>pikachu</h2>');
+    expect(html).toContain('data-type="electric"');
+    expect(html).toContain('data-sprite');
+
+    // Should NOT be in loading state
+    expect(html).not.toContain('data-loading');
+  }, 15_000);
 });

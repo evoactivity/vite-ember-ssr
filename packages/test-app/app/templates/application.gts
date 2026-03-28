@@ -8,7 +8,8 @@ import { LinkTo } from '@ember/routing';
     <LinkTo @route="index">Home</LinkTo>
     <LinkTo @route="about">About</LinkTo>
     <LinkTo @route="contact">Contact</LinkTo>
-    <LinkTo @route="pokemon">Pokémon</LinkTo>
+    <LinkTo @route="pokemon-fetch">Pokémon (Fetch)</LinkTo>
+    <LinkTo @route="pokemon-warp-drive">Pokémon (WarpDrive)</LinkTo>
   </nav>
 
   {{outlet}}

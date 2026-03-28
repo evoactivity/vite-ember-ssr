@@ -228,17 +228,17 @@ test.describe('item list filtering', () => {
   });
 });
 
-// ─── Pokemon routes with fetch (SSR + client) ───────────────────────
+// ─── Pokemon-fetch routes with fetch (SSR + client) ─────────────────
 
-test.describe('pokemon routes with fetched data', () => {
+test.describe('pokemon-fetch routes with fetched data', () => {
   test('pokemon list page shows SSR content with fetched data (no JS)', async ({ page }) => {
     // Block JS to verify pure SSR
     await page.route('**/*.js', (route) => route.abort());
 
-    await page.goto('/pokemon');
+    await page.goto('/pokemon-fetch');
 
-    await expect(page.locator('[data-route="pokemon"]')).toBeVisible();
-    await expect(page.locator('h1')).toHaveText('Pokémon');
+    await expect(page.locator('[data-route="pokemon-fetch"]')).toBeVisible();
+    await expect(page.locator('h1')).toHaveText('Pokémon (Fetch)');
     await expect(page.locator('[data-component="pokemon-list"]')).toBeVisible();
 
     // Fetched data should be in SSR HTML
@@ -250,13 +250,13 @@ test.describe('pokemon routes with fetched data', () => {
   test('pokemon detail page shows SSR content with fetched data (no JS)', async ({ page }) => {
     await page.route('**/*.js', (route) => route.abort());
 
-    await page.goto('/pokemon/pikachu');
+    await page.goto('/pokemon-fetch/pikachu');
 
     // Parent list is present
     await expect(page.locator('[data-component="pokemon-list"]')).toBeVisible();
 
     // Detail view with fetched data
-    await expect(page.locator('[data-route="pokemon.show"]')).toBeVisible();
+    await expect(page.locator('[data-route="pokemon-fetch.show"]')).toBeVisible();
     await expect(page.locator('[data-pokemon-name="pikachu"]')).toBeVisible();
     await expect(page.locator('h2')).toHaveText('pikachu');
     await expect(page.locator('[data-field="id"]')).toHaveText('25');
@@ -273,17 +273,17 @@ test.describe('pokemon routes with fetched data', () => {
     }, { timeout: 15_000 });
 
     // Navigate to pokemon via client-side link
-    await page.locator('nav a:has-text("Pokémon")').click();
-    await page.waitForURL('/pokemon', { timeout: 10_000 });
+    await page.locator('nav a:has-text("Pokémon (Fetch)")').click();
+    await page.waitForURL('/pokemon-fetch', { timeout: 10_000 });
 
     // Fetched data should be rendered by client Ember
-    await expect(page.locator('[data-route="pokemon"]')).toBeVisible();
+    await expect(page.locator('[data-route="pokemon-fetch"]')).toBeVisible();
     await expect(page.locator('[data-pokemon="bulbasaur"]')).toBeVisible();
     await expect(page.locator('[data-pokemon="charmander"]')).toBeVisible();
   });
 
   test('clicking a pokemon navigates to its detail page', async ({ page }) => {
-    await page.goto('/pokemon');
+    await page.goto('/pokemon-fetch');
 
     // Wait for Ember to boot
     await page.waitForFunction(() => {
@@ -292,7 +292,7 @@ test.describe('pokemon routes with fetched data', () => {
 
     // Click on bulbasaur
     await page.locator('[data-pokemon="bulbasaur"] a').click();
-    await page.waitForURL('/pokemon/bulbasaur', { timeout: 10_000 });
+    await page.waitForURL('/pokemon-fetch/bulbasaur', { timeout: 10_000 });
 
     // Detail view should show bulbasaur data
     await expect(page.locator('[data-pokemon-name="bulbasaur"]')).toBeVisible();
@@ -306,7 +306,7 @@ test.describe('pokemon routes with fetched data', () => {
   });
 
   test('navigating between pokemon detail pages updates content', async ({ page }) => {
-    await page.goto('/pokemon/bulbasaur');
+    await page.goto('/pokemon-fetch/bulbasaur');
 
     // Wait for Ember to boot
     await page.waitForFunction(() => {
@@ -318,11 +318,168 @@ test.describe('pokemon routes with fetched data', () => {
 
     // Navigate to charmander via the list
     await page.locator('[data-pokemon="charmander"] a').click();
-    await page.waitForURL('/pokemon/charmander', { timeout: 10_000 });
+    await page.waitForURL('/pokemon-fetch/charmander', { timeout: 10_000 });
 
     // Content should update to charmander
     await expect(page.locator('[data-pokemon-name="charmander"]')).toBeVisible();
     await expect(page.locator('[data-field="id"]')).toHaveText('4');
+    await expect(page.locator('[data-type="fire"]')).toBeVisible();
+
+    // Bulbasaur data should be gone
+    await expect(page.locator('[data-pokemon-name="bulbasaur"]')).not.toBeAttached();
+  });
+});
+
+// ─── Pokemon WarpDrive SSR content (proves server returns content, not loading) ─
+
+test.describe('pokemon-warp-drive SSR shows content, not loading state', () => {
+  test('pokemon list page shows SSR content with WarpDrive data (no JS)', async ({ page }) => {
+    // Block JS to verify pure SSR content
+    await page.route('**/*.js', (route) => route.abort());
+
+    await page.goto('/pokemon-warp-drive');
+
+    await expect(page.locator('[data-route="pokemon-warp-drive"]')).toBeVisible();
+    await expect(page.locator('h1')).toHaveText('Pokémon (WarpDrive)');
+    await expect(page.locator('[data-component="pokemon-list"]')).toBeVisible();
+
+    // WarpDrive-fetched data should be in the SSR HTML (not loading state)
+    await expect(page.locator('[data-pokemon="bulbasaur"]')).toBeVisible();
+    await expect(page.locator('[data-pokemon="charmander"]')).toBeVisible();
+    await expect(page.locator('[data-pokemon="squirtle"]')).toBeVisible();
+
+    // Loading/error states should NOT be present
+    await expect(page.locator('[data-loading]')).not.toBeAttached();
+    await expect(page.locator('[data-error]')).not.toBeAttached();
+  });
+
+  test('pokemon detail page shows SSR content with WarpDrive data (no JS)', async ({ page }) => {
+    await page.route('**/*.js', (route) => route.abort());
+
+    await page.goto('/pokemon-warp-drive/pikachu');
+
+    // Parent list is present from SSR
+    await expect(page.locator('[data-component="pokemon-list"]')).toBeVisible();
+
+    // Detail view with WarpDrive-fetched data
+    await expect(page.locator('[data-route="pokemon-warp-drive.show"]')).toBeVisible();
+    await expect(page.locator('[data-pokemon-name="pikachu"]')).toBeVisible();
+    await expect(page.locator('h2')).toHaveText('pikachu');
+    await expect(page.locator('[data-field="id"]')).toBeVisible();
+    await expect(page.locator('[data-type="electric"]')).toBeVisible();
+    await expect(page.locator('[data-sprite]')).toBeVisible();
+
+    // Loading/error states should NOT be present
+    await expect(page.locator('[data-loading]')).not.toBeAttached();
+    await expect(page.locator('[data-error]')).not.toBeAttached();
+  });
+
+  test('different pokemon detail pages render correct SSR content (no JS)', async ({ page }) => {
+    await page.route('**/*.js', (route) => route.abort());
+
+    await page.goto('/pokemon-warp-drive/charmander');
+
+    await expect(page.locator('[data-pokemon-name="charmander"]')).toBeVisible();
+    await expect(page.locator('[data-type="fire"]')).toBeVisible();
+    await expect(page.locator('[data-field="id"]')).toBeVisible();
+
+    // Should NOT contain pikachu data (no cross-contamination)
+    await expect(page.locator('[data-pokemon-name="pikachu"]')).not.toBeAttached();
+
+    // Loading/error states should NOT be present
+    await expect(page.locator('[data-loading]')).not.toBeAttached();
+  });
+});
+
+// ─── Pokemon WarpDrive routes (client-side data loading) ────────────
+
+test.describe('pokemon-warp-drive routes with WarpDrive store', () => {
+  test('pokemon list loads via WarpDrive after client boot', async ({ page }) => {
+    await page.goto('/pokemon-warp-drive');
+
+    // Wait for Ember to boot and data to load
+    await page.waitForFunction(() => {
+      return !document.getElementById('ssr-body-start');
+    }, { timeout: 15_000 });
+
+    // Wait for the pokemon list to appear (WarpDrive request resolves)
+    await expect(page.locator('[data-component="pokemon-list"]')).toBeVisible({ timeout: 10_000 });
+    await expect(page.locator('[data-pokemon="bulbasaur"]')).toBeVisible();
+    await expect(page.locator('[data-pokemon="charmander"]')).toBeVisible();
+    await expect(page.locator('[data-pokemon="squirtle"]')).toBeVisible();
+  });
+
+  test('pokemon detail loads via WarpDrive after client boot', async ({ page }) => {
+    await page.goto('/pokemon-warp-drive/pikachu');
+
+    // Wait for Ember to boot
+    await page.waitForFunction(() => {
+      return !document.getElementById('ssr-body-start');
+    }, { timeout: 15_000 });
+
+    // Wait for detail to appear
+    await expect(page.locator('[data-route="pokemon-warp-drive.show"]')).toBeVisible({ timeout: 10_000 });
+    await expect(page.locator('[data-pokemon-name="pikachu"]')).toBeVisible();
+    await expect(page.locator('[data-type="electric"]')).toBeVisible();
+    await expect(page.locator('[data-sprite]')).toBeVisible();
+    await expect(page.locator('[data-field="id"]')).toBeVisible();
+  });
+
+  test('clicking a pokemon navigates to WarpDrive detail page', async ({ page }) => {
+    await page.goto('/pokemon-warp-drive');
+
+    // Wait for Ember to boot and list to load
+    await page.waitForFunction(() => {
+      return !document.getElementById('ssr-body-start');
+    }, { timeout: 15_000 });
+    await expect(page.locator('[data-component="pokemon-list"]')).toBeVisible({ timeout: 10_000 });
+
+    // Click on bulbasaur
+    await page.locator('[data-pokemon="bulbasaur"] a').click();
+    await page.waitForURL('/pokemon-warp-drive/bulbasaur', { timeout: 10_000 });
+
+    // Detail view should show
+    await expect(page.locator('[data-pokemon-name="bulbasaur"]')).toBeVisible({ timeout: 10_000 });
+    await expect(page.locator('[data-type="grass"]')).toBeVisible();
+    await expect(page.locator('[data-type="poison"]')).toBeVisible();
+  });
+
+  test('client-side navigation to WarpDrive pokemon list', async ({ page }) => {
+    await page.goto('/');
+
+    // Wait for Ember to boot
+    await page.waitForFunction(() => {
+      return !document.getElementById('ssr-body-start');
+    }, { timeout: 15_000 });
+
+    // Navigate via nav link
+    await page.locator('nav a:has-text("Pokémon (WarpDrive)")').click();
+    await page.waitForURL('/pokemon-warp-drive', { timeout: 10_000 });
+
+    // Data loaded via WarpDrive
+    await expect(page.locator('[data-route="pokemon-warp-drive"]')).toBeVisible();
+    await expect(page.locator('[data-component="pokemon-list"]')).toBeVisible({ timeout: 10_000 });
+    await expect(page.locator('[data-pokemon="bulbasaur"]')).toBeVisible();
+  });
+
+  test('navigating between WarpDrive pokemon detail pages updates content', async ({ page }) => {
+    await page.goto('/pokemon-warp-drive/bulbasaur');
+
+    // Wait for Ember to boot
+    await page.waitForFunction(() => {
+      return !document.getElementById('ssr-body-start');
+    }, { timeout: 15_000 });
+
+    await expect(page.locator('[data-pokemon-name="bulbasaur"]')).toBeVisible({ timeout: 10_000 });
+    await expect(page.locator('[data-field="id"]')).toHaveText('bulbasaur');
+
+    // Navigate to charmander via the list
+    await page.locator('[data-pokemon="charmander"] a').click();
+    await page.waitForURL('/pokemon-warp-drive/charmander', { timeout: 10_000 });
+
+    // Content should update to charmander
+    await expect(page.locator('[data-pokemon-name="charmander"]')).toBeVisible({ timeout: 10_000 });
+    await expect(page.locator('[data-field="id"]')).toHaveText('charmander');
     await expect(page.locator('[data-type="fire"]')).toBeVisible();
 
     // Bulbasaur data should be gone

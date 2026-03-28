@@ -48,6 +48,7 @@ async function setupDevMode(app) {
         /^@ember\//,
         /^@glimmer\//,
         /^@embroider\//,
+        /^@warp-drive\//,
         /^ember-/,
         'decorator-transforms',
       ],
