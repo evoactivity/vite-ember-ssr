@@ -39,11 +39,7 @@ import { babel } from '@rollup/plugin-babel';
 import { emberSsr } from 'vite-ember-ssr/vite-plugin';
 
 export default defineConfig({
-  plugins: [
-    ember(),
-    babel({ babelHelpers: 'runtime', extensions }),
-    emberSsr()
-  ],
+  plugins: [ember(), babel({ babelHelpers: 'runtime', extensions }), emberSsr()],
 });
 ```
 
@@ -86,12 +82,6 @@ class App extends EmberApp {
 export function createSsrApp() {
   return App.create({ ...config.APP, autoboot: false });
 }
-
-Notes:
-- Place this file in your application package at `app/app-ssr.ts` (the SSR build references that path in examples).
-- `autoboot: false` prevents the Ember application from attempting to boot itself in the server environment; instead we call `Application.visit(url)` to drive rendering.
-- The `modules` map uses `import.meta.glob(..., { eager: true })` to provide the resolver with preloaded route/template/service modules — this mirrors how Embroider/Ember apps load modules at runtime in a static environment.
-- Keep the glob patterns broad enough to include your `routes`, `templates`, and `services` so the resolver can find everything the app needs during SSR.
 ```
 
 ### 4. Client entry (`app/entry.ts`)
