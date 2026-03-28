@@ -7,6 +7,8 @@
     "build": "pnpm --filter vite-ember-ssr build && pnpm --filter test-app build:all",
     "dev": "pnpm --filter test-server dev",
     "test": "pnpm --filter test-server test",
+    "test:browser": "pnpm --filter test-server test:browser",
+    "test:all": "pnpm --filter test-server test:all",
     "clean": "rm -rf packages/*/dist"
   },
   "keywords": [],

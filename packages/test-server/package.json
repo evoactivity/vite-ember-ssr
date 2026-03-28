@@ -8,7 +8,9 @@
     "dev": "node index.js --dev",
     "start": "node index.js",
     "test": "vitest run",
-    "test:watch": "vitest"
+    "test:watch": "vitest",
+    "test:browser": "playwright test",
+    "test:all": "vitest run && playwright test"
   },
   "dependencies": {
     "@fastify/compress": "^8.0.3",
@@ -18,6 +20,8 @@
     "vite-ember-ssr": "workspace:*"
   },
   "devDependencies": {
+    "@playwright/test": "^1.58.2",
+    "playwright": "^1.58.2",
     "vite": "^7.3.1",
     "vitest": "^4.1.2"
   }

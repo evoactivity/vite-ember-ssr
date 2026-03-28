@@ -27,6 +27,8 @@ async function renderRoute(url) {
   return { html, rendered };
 }
 
+// ─── Route rendering ─────────────────────────────────────────────────
+
 describe('SSR routing', () => {
   it('renders the index route at /', async () => {
     const { html, rendered } = await renderRoute('/');
@@ -40,8 +42,9 @@ describe('SSR routing', () => {
     expect(html).toContain('Server-side rendered Ember application.');
     expect(html).toContain('test-logo');
 
-    // Application layout (nav)
-    expect(html).toContain('<nav>');
+    // Navigation (now uses LinkTo)
+    expect(html).toContain('data-component="navigation"');
+    expect(html).toContain('href="/"');
     expect(html).toContain('href="/about"');
     expect(html).toContain('href="/contact"');
   });
@@ -57,7 +60,7 @@ describe('SSR routing', () => {
     expect(html).toContain('<h1>About</h1>');
     expect(html).toContain('HappyDOM');
 
-    // Should NOT contain index content
+    // Should NOT contain index-only content
     expect(html).not.toContain('data-route="index"');
     expect(html).not.toContain('Welcome to vite-ember-ssr');
   });
@@ -79,6 +82,8 @@ describe('SSR routing', () => {
     expect(html).not.toContain('data-route="about"');
   });
 });
+
+// ─── HTML structure ──────────────────────────────────────────────────
 
 describe('SSR HTML structure', () => {
   it('replaces SSR markers in the template', async () => {
@@ -108,6 +113,107 @@ describe('SSR HTML structure', () => {
   });
 });
 
+// ─── Components in SSR ───────────────────────────────────────────────
+
+describe('SSR component rendering', () => {
+  it('renders the CounterDisplay component with initial state', async () => {
+    const { html } = await renderRoute('/');
+
+    // Component is present
+    expect(html).toContain('data-component="counter-display"');
+
+    // Initial counter state
+    expect(html).toContain('data-count="0"');
+    expect(html).toContain('data-label="zero"');
+    expect(html).toContain('data-status="zero"');
+    expect(html).toContain('The count is zero.');
+
+    // Action buttons are rendered
+    expect(html).toContain('data-action="increment"');
+    expect(html).toContain('data-action="decrement"');
+    expect(html).toContain('data-action="reset"');
+  });
+
+  it('renders the ItemList component with all items', async () => {
+    const { html } = await renderRoute('/');
+
+    // Component is present
+    expect(html).toContain('data-component="item-list"');
+
+    // Default filter is "all"
+    expect(html).toContain('data-filter="all"');
+    expect(html).toContain('data-item-count="5"');
+    expect(html).toContain('Showing 5 of 5 items');
+
+    // All items rendered
+    expect(html).toContain('data-item-id="1"');
+    expect(html).toContain('Vite');
+    expect(html).toContain('data-item-id="2"');
+    expect(html).toContain('Ember');
+    expect(html).toContain('data-item-id="3"');
+    expect(html).toContain('HappyDOM');
+    expect(html).toContain('data-item-id="4"');
+    expect(html).toContain('Glimmer');
+    expect(html).toContain('data-item-id="5"');
+    expect(html).toContain('TypeScript');
+
+    // Category filter buttons
+    expect(html).toContain('data-category="all"');
+    expect(html).toContain('data-category="framework"');
+    expect(html).toContain('data-category="language"');
+    expect(html).toContain('data-category="tooling"');
+  });
+
+  it('renders CounterDisplay on the about route too', async () => {
+    const { html } = await renderRoute('/about');
+
+    expect(html).toContain('data-component="counter-display"');
+    expect(html).toContain('data-count="0"');
+    expect(html).toContain('data-status="zero"');
+  });
+
+  it('does not render ItemList on the about route', async () => {
+    const { html } = await renderRoute('/about');
+
+    expect(html).not.toContain('data-component="item-list"');
+  });
+
+  it('does not render interactive components on the contact route', async () => {
+    const { html } = await renderRoute('/contact');
+
+    expect(html).not.toContain('data-component="counter-display"');
+    expect(html).not.toContain('data-component="item-list"');
+  });
+});
+
+// ─── LinkTo rendering ────────────────────────────────────────────────
+
+describe('SSR LinkTo rendering', () => {
+  it('renders LinkTo as <a> tags with correct hrefs', async () => {
+    const { html } = await renderRoute('/');
+
+    // LinkTo renders as anchor elements
+    expect(html).toMatch(/<a[^>]+href="\/"[^>]*>Home<\/a>/);
+    expect(html).toMatch(/<a[^>]+href="\/about"[^>]*>About<\/a>/);
+    expect(html).toMatch(/<a[^>]+href="\/contact"[^>]*>Contact<\/a>/);
+  });
+
+  it('marks the active route link', async () => {
+    const { html: indexHtml } = await renderRoute('/');
+    const { html: aboutHtml } = await renderRoute('/about');
+
+    // On index, the Home link should have "active" class
+    const homeLink = indexHtml.match(/<a[^>]+href="\/"[^>]*>/);
+    expect(homeLink?.[0]).toContain('active');
+
+    // On about, the About link should have "active" class
+    const aboutLink = aboutHtml.match(/<a[^>]+href="\/about"[^>]*>/);
+    expect(aboutLink?.[0]).toContain('active');
+  });
+});
+
+// ─── Isolation ───────────────────────────────────────────────────────
+
 describe('SSR renders each route independently', () => {
   it('renders different content for sequential requests', async () => {
     const index = await renderRoute('/');
@@ -123,5 +229,15 @@ describe('SSR renders each route independently', () => {
     expect(index.html).not.toContain('data-route="about"');
     expect(about.html).not.toContain('data-route="contact"');
     expect(contact.html).not.toContain('data-route="index"');
+  });
+
+  it('each SSR request gets fresh counter state', async () => {
+    // Both index and about have CounterDisplay, both should show 0
+    const index = await renderRoute('/');
+    const about = await renderRoute('/about');
+
+    // Counter starts at 0 on every SSR request (no state leakage)
+    expect(index.html).toContain('data-count="0"');
+    expect(about.html).toContain('data-count="0"');
   });
 });
