@@ -1,9 +1,10 @@
 /**
  * WarpDrive request handler for the PokeAPI.
  *
- * Intercepts requests to pokeapi.co, fetches the data,
- * and normalizes the response into JSON:API format for
- * WarpDrive's cache.
+ * Delegates fetching to the next handler in the chain (the
+ * built-in Fetch handler provided by useLegacyStore), then
+ * normalizes the response into JSON:API format for WarpDrive's
+ * cache.
  */
 import type { Handler, RequestContext, NextFn } from '@warp-drive/core/types/request';
 
@@ -17,10 +18,8 @@ export const PokeApiHandler: Handler = {
       return next(context.request);
     }
 
-    const response = await fetch(url);
-    context.setResponse(response);
-
-    const data = await response.json();
+    const result = await next(context.request);
+    const data = result.content as any;
 
     // Detect if this is a list response (has `results` array)
     // or a single pokemon detail response (has `id` field)
