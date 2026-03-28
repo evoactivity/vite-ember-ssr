@@ -391,7 +391,143 @@ test.describe('pokemon-warp-drive SSR shows content, not loading state', () => {
   });
 });
 
-// ─── Pokemon WarpDrive routes (client-side data loading) ────────────
+// ─── Shoebox: data transfer from server to client ───────────────────
+
+test.describe('shoebox prevents double-fetching', () => {
+  test('shoebox script tag is present in SSR HTML (no JS)', async ({ page }) => {
+    await page.route('**/*.js', (route) => route.abort());
+
+    await page.goto('/pokemon-fetch');
+
+    // Shoebox script should be in the DOM
+    const shoeboxEl = page.locator('#vite-ember-ssr-shoebox');
+    await expect(shoeboxEl).toBeAttached();
+
+    // It should contain valid JSON
+    const content = await shoeboxEl.textContent();
+    const entries = JSON.parse(content);
+    expect(Array.isArray(entries)).toBe(true);
+    expect(entries.length).toBeGreaterThan(0);
+
+    // Should contain a PokeAPI URL
+    const hasPokeApi = entries.some((e) => e.url.includes('pokeapi.co'));
+    expect(hasPokeApi).toBe(true);
+  });
+
+  test('shoebox script tag is removed after client boot', async ({ page }) => {
+    await page.goto('/pokemon-fetch');
+
+    // Wait for client Ember to boot
+    await page.waitForFunction(() => {
+      return !document.getElementById('ssr-body-start');
+    }, { timeout: 15_000 });
+
+    // Shoebox should be consumed and removed
+    const shoeboxEl = await page.$('#vite-ember-ssr-shoebox');
+    expect(shoeboxEl).toBeNull();
+  });
+
+  test('no duplicate PokeAPI requests on initial pokemon-fetch page load', async ({ page }) => {
+    // Track all requests to the PokeAPI
+    const pokeApiRequests = [];
+    page.on('request', (request) => {
+      if (request.url().includes('pokeapi.co')) {
+        pokeApiRequests.push({ url: request.url(), method: request.method() });
+      }
+    });
+
+    await page.goto('/pokemon-fetch');
+
+    // Wait for Ember to boot and content to be visible
+    await page.waitForFunction(() => {
+      return !document.getElementById('ssr-body-start');
+    }, { timeout: 15_000 });
+
+    // Pokemon content should be visible (served from shoebox, not re-fetched)
+    await expect(page.locator('[data-route="pokemon-fetch"]')).toBeVisible();
+    await expect(page.locator('[data-pokemon="bulbasaur"]')).toBeVisible();
+
+    // No PokeAPI requests should have been made by the client
+    // (the server made them during SSR, the client reads from the shoebox)
+    expect(pokeApiRequests).toHaveLength(0);
+  });
+
+  test('no duplicate PokeAPI requests on initial pokemon-fetch detail load', async ({ page }) => {
+    const pokeApiRequests = [];
+    page.on('request', (request) => {
+      if (request.url().includes('pokeapi.co')) {
+        pokeApiRequests.push(request.url());
+      }
+    });
+
+    await page.goto('/pokemon-fetch/pikachu');
+
+    // Wait for Ember to boot
+    await page.waitForFunction(() => {
+      return !document.getElementById('ssr-body-start');
+    }, { timeout: 15_000 });
+
+    // Content should be visible
+    await expect(page.locator('[data-pokemon-name="pikachu"]')).toBeVisible();
+    await expect(page.locator('[data-pokemon="bulbasaur"]')).toBeVisible();
+
+    // No PokeAPI requests from the client
+    expect(pokeApiRequests).toHaveLength(0);
+  });
+
+  test('no duplicate PokeAPI requests on initial WarpDrive page load', async ({ page }) => {
+    const pokeApiRequests = [];
+    page.on('request', (request) => {
+      if (request.url().includes('pokeapi.co')) {
+        pokeApiRequests.push(request.url());
+      }
+    });
+
+    await page.goto('/pokemon-warp-drive');
+
+    // Wait for Ember to boot
+    await page.waitForFunction(() => {
+      return !document.getElementById('ssr-body-start');
+    }, { timeout: 15_000 });
+
+    // Wait for WarpDrive content to render
+    await expect(page.locator('[data-component="pokemon-list"]')).toBeVisible({ timeout: 10_000 });
+    await expect(page.locator('[data-pokemon="bulbasaur"]')).toBeVisible();
+
+    // No PokeAPI requests from the client — shoebox served them
+    expect(pokeApiRequests).toHaveLength(0);
+  });
+
+  test('subsequent client-side navigation still fetches normally', async ({ page }) => {
+    const pokeApiRequests = [];
+    page.on('request', (request) => {
+      if (request.url().includes('pokeapi.co')) {
+        pokeApiRequests.push(request.url());
+      }
+    });
+
+    // Initial load — shoebox prevents API calls
+    await page.goto('/pokemon-fetch');
+    await page.waitForFunction(() => {
+      return !document.getElementById('ssr-body-start');
+    }, { timeout: 15_000 });
+    await expect(page.locator('[data-pokemon="bulbasaur"]')).toBeVisible();
+    expect(pokeApiRequests).toHaveLength(0);
+
+    // Navigate to a different pokemon detail via client-side navigation
+    // This should make a REAL fetch call since the shoebox only had
+    // entries for the initial page load
+    await page.locator('[data-pokemon="charmander"] a').click();
+    await page.waitForURL('/pokemon-fetch/charmander', { timeout: 10_000 });
+
+    // Wait for detail content to appear
+    await expect(page.locator('[data-pokemon-name="charmander"]')).toBeVisible({ timeout: 10_000 });
+
+    // NOW there should be API requests (the detail fetch for charmander)
+    expect(pokeApiRequests.length).toBeGreaterThan(0);
+    expect(pokeApiRequests.some((url) => url.includes('pokemon/charmander'))).toBe(true);
+  });
+});
 
 test.describe('pokemon-warp-drive routes with WarpDrive store', () => {
   test('pokemon list loads via WarpDrive after client boot', async ({ page }) => {

@@ -86,7 +86,7 @@ async function setupDevMode(app) {
       }
 
       // 4. Render the Ember app at the requested URL
-      const rendered = await renderEmberApp({ url, createApp: createSsrApp });
+      const rendered = await renderEmberApp({ url, createApp: createSsrApp, shoebox: true });
 
       if (rendered.error) {
         app.log.error(rendered.error, 'SSR rendering error');
@@ -144,7 +144,7 @@ async function setupProductionMode(app) {
     }
 
     try {
-      const rendered = await renderEmberApp({ url, createApp: createSsrApp });
+      const rendered = await renderEmberApp({ url, createApp: createSsrApp, shoebox: true });
 
       if (rendered.error) {
         app.log.error(rendered.error, 'SSR rendering error');
