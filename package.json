@@ -4,7 +4,10 @@
   "description": "",
   "main": "index.js",
   "scripts": {
-    "test": "echo \"Error: no test specified\" && exit 1"
+    "build": "pnpm --filter vite-ember-ssr build && pnpm --filter test-app build:all",
+    "dev": "pnpm --filter test-server dev",
+    "test": "pnpm --filter test-server test",
+    "clean": "rm -rf packages/*/dist"
   },
   "keywords": [],
   "author": "",
