@@ -5,32 +5,7 @@
 
 Vite plugin and SSR runtime for Ember.js applications. Uses [HappyDOM](https://github.com/capricorn86/happy-dom) for server-side rendering — no FastBoot, no VM sandbox.
 
-## Quickstart (copy-paste)
-
-1. Install the package and required peers:
-
-```sh
-pnpm add -D vite-ember-ssr @embroider/vite ember-strict-application-resolver
-```
-
-2. Add the Vite plugin to `vite.config.mjs` (see full example below):
-
-3. Add SSR markers to `index.html`:
-
-```html
-<!-- VITE_EMBER_SSR_HEAD -->
-<!-- VITE_EMBER_SSR_BODY -->
-```
-
-4. Create `app/app-ssr.ts` (export a `createSsrApp` factory) and `app/entry.ts` (client boot that calls `installShoebox()` and `cleanupSSRContent()`).
-
-5. Build and run:
-
-```sh
-vite build                      # client → dist/client
-vite build --ssr app/app-ssr.ts # server → dist/server
-# use your server (see examples/fastify.md)
-```
+See the Installation and Setup sections below for installation and copy‑paste integration snippets.
 
 ## Architecture
 
@@ -42,9 +17,6 @@ vite build --ssr app/app-ssr.ts # server → dist/server
 ## Requirements
 
 - Ember app built with Embroider in "compatless" mode (no `@embroider/compat`, no `ember-cli-build.js`, and no `classicEmberSupport()`).
-  - If you're unsure what this means: compatless apps rely on the new Embroider build pipeline. See Embroider docs for details and migration guidance.
-- `@embroider/vite` (use the `ember()` plugin)
-- `ember-strict-application-resolver` instead of `ember-resolver` (install with `pnpm add -D ember-strict-application-resolver`) — this library provides an ES-module friendly application resolver used by the SSR entry.
 - Your app's `config/environment` must be a direct ES module import (i.e. `import config from './config/environment.ts'`). Do not rely on `<meta>` config injection or `@embroider/config-meta-loader`.
 - Vite 6+
 - Node 22+
@@ -70,7 +42,7 @@ export default defineConfig({
   plugins: [
     ember(),
     babel({ babelHelpers: 'runtime', extensions }),
-    emberSsr(),
+    emberSsr()
   ],
 });
 ```
@@ -83,7 +55,7 @@ Add SSR markers to `index.html`:
 <!DOCTYPE html>
 <html>
   <head>
-    <meta charset="utf-8">
+    <meta charset="utf-8" />
     <!-- VITE_EMBER_SSR_HEAD -->
   </head>
   <body>
@@ -170,10 +142,10 @@ Options:
 
 ```js
 emberSsr({
-  clientOutDir: 'dist/client',          // default
-  serverOutDir: 'dist/server',          // default
-  additionalNoExternal: ['my-addon'],   // extend built-in patterns
-})
+  clientOutDir: 'dist/client', // default
+  serverOutDir: 'dist/server', // default
+  additionalNoExternal: ['my-addon'], // extend built-in patterns
+});
 ```
 
 ### `vite-ember-ssr/server`
@@ -203,11 +175,11 @@ import { installShoebox, cleanupSSRContent, cleanupShoebox } from 'vite-ember-ss
 
 This repo contains three packages:
 
-| Package | Description |
-|---|---|
-| `packages/vite-ember-ssr` | Core library |
-| `packages/test-app` | Ember test app |
-| `packages/test-server` | Fastify SSR server + test suites |
+| Package                   | Description                      |
+| ------------------------- | -------------------------------- |
+| `packages/vite-ember-ssr` | Core library                     |
+| `packages/test-app`       | Ember test app                   |
+| `packages/test-server`    | Fastify SSR server + test suites |
 
 ```sh
 pnpm install
