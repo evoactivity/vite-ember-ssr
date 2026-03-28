@@ -228,17 +228,17 @@ test.describe('item list filtering', () => {
   });
 });
 
-// ─── Pokemon routes with fetch (SSR + client) ───────────────────────
+// ─── Pokemon-fetch routes with fetch (SSR + client) ─────────────────
 
-test.describe('pokemon routes with fetched data', () => {
+test.describe('pokemon-fetch routes with fetched data', () => {
   test('pokemon list page shows SSR content with fetched data (no JS)', async ({ page }) => {
     // Block JS to verify pure SSR
     await page.route('**/*.js', (route) => route.abort());
 
-    await page.goto('/pokemon');
+    await page.goto('/pokemon-fetch');
 
-    await expect(page.locator('[data-route="pokemon"]')).toBeVisible();
-    await expect(page.locator('h1')).toHaveText('Pokémon');
+    await expect(page.locator('[data-route="pokemon-fetch"]')).toBeVisible();
+    await expect(page.locator('h1')).toHaveText('Pokémon (Fetch)');
     await expect(page.locator('[data-component="pokemon-list"]')).toBeVisible();
 
     // Fetched data should be in SSR HTML
@@ -250,13 +250,13 @@ test.describe('pokemon routes with fetched data', () => {
   test('pokemon detail page shows SSR content with fetched data (no JS)', async ({ page }) => {
     await page.route('**/*.js', (route) => route.abort());
 
-    await page.goto('/pokemon/pikachu');
+    await page.goto('/pokemon-fetch/pikachu');
 
     // Parent list is present
     await expect(page.locator('[data-component="pokemon-list"]')).toBeVisible();
 
     // Detail view with fetched data
-    await expect(page.locator('[data-route="pokemon.show"]')).toBeVisible();
+    await expect(page.locator('[data-route="pokemon-fetch.show"]')).toBeVisible();
     await expect(page.locator('[data-pokemon-name="pikachu"]')).toBeVisible();
     await expect(page.locator('h2')).toHaveText('pikachu');
     await expect(page.locator('[data-field="id"]')).toHaveText('25');
@@ -274,16 +274,16 @@ test.describe('pokemon routes with fetched data', () => {
 
     // Navigate to pokemon via client-side link
     await page.locator('nav a:has-text("Pokémon")').click();
-    await page.waitForURL('/pokemon', { timeout: 10_000 });
+    await page.waitForURL('/pokemon-fetch', { timeout: 10_000 });
 
     // Fetched data should be rendered by client Ember
-    await expect(page.locator('[data-route="pokemon"]')).toBeVisible();
+    await expect(page.locator('[data-route="pokemon-fetch"]')).toBeVisible();
     await expect(page.locator('[data-pokemon="bulbasaur"]')).toBeVisible();
     await expect(page.locator('[data-pokemon="charmander"]')).toBeVisible();
   });
 
   test('clicking a pokemon navigates to its detail page', async ({ page }) => {
-    await page.goto('/pokemon');
+    await page.goto('/pokemon-fetch');
 
     // Wait for Ember to boot
     await page.waitForFunction(() => {
@@ -292,7 +292,7 @@ test.describe('pokemon routes with fetched data', () => {
 
     // Click on bulbasaur
     await page.locator('[data-pokemon="bulbasaur"] a').click();
-    await page.waitForURL('/pokemon/bulbasaur', { timeout: 10_000 });
+    await page.waitForURL('/pokemon-fetch/bulbasaur', { timeout: 10_000 });
 
     // Detail view should show bulbasaur data
     await expect(page.locator('[data-pokemon-name="bulbasaur"]')).toBeVisible();
@@ -306,7 +306,7 @@ test.describe('pokemon routes with fetched data', () => {
   });
 
   test('navigating between pokemon detail pages updates content', async ({ page }) => {
-    await page.goto('/pokemon/bulbasaur');
+    await page.goto('/pokemon-fetch/bulbasaur');
 
     // Wait for Ember to boot
     await page.waitForFunction(() => {
@@ -318,7 +318,7 @@ test.describe('pokemon routes with fetched data', () => {
 
     // Navigate to charmander via the list
     await page.locator('[data-pokemon="charmander"] a').click();
-    await page.waitForURL('/pokemon/charmander', { timeout: 10_000 });
+    await page.waitForURL('/pokemon-fetch/charmander', { timeout: 10_000 });
 
     // Content should update to charmander
     await expect(page.locator('[data-pokemon-name="charmander"]')).toBeVisible();

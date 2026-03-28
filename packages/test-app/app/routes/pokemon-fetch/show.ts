@@ -1,6 +1,6 @@
 import Route from '@ember/routing/route';
 
-export default class PokemonShowRoute extends Route {
+export default class PokemonFetchShowRoute extends Route {
   async model(params: { name: string }) {
     const response = await fetch(`https://pokeapi.co/api/v2/pokemon/${params.name}`);
     const data = await response.json();
