@@ -13,10 +13,7 @@
       "test-app/*": ["./app/*"],
       "*": ["./types/*"]
     },
-    "types": [
-      "ember-source/types",
-      "vite/client"
-    ]
+    "types": ["ember-source/types", "vite/client"]
   },
   "include": ["app", "types"]
 }

@@ -48,7 +48,14 @@ import { babel } from '@rollup/plugin-babel';
 import { emberSsr } from 'vite-ember-ssr/vite-plugin';
 
 export default defineConfig({
-  plugins: [ember(), babel({ babelHelpers: 'runtime', extensions }), emberSsr()],
+  plugins: [
+    ember(),
+    babel({
+      babelHelpers: 'runtime',
+      extensions,
+    }),
+    emberSsr(),
+  ],
 });
 ```
 
@@ -412,7 +419,12 @@ Lower-level functions are also exported for advanced use:
 ### `vite-ember-ssr/client`
 
 ```js
-import { installShoebox, cleanupSSRContent, cleanupShoebox, isSSRRendered } from 'vite-ember-ssr/client';
+import {
+  installShoebox,
+  cleanupSSRContent,
+  cleanupShoebox,
+  isSSRRendered,
+} from 'vite-ember-ssr/client';
 ```
 
 - **`installShoebox()`** — replay server-captured fetch responses, auto-restores `fetch` when all entries consumed.
@@ -424,13 +436,13 @@ import { installShoebox, cleanupSSRContent, cleanupShoebox, isSSRRendered } from
 
 This repo contains five packages:
 
-| Package                       | Description                     |
-| ----------------------------- | ------------------------------- |
-| `packages/vite-ember-ssr`     | Core library + test suites      |
-| `packages/test-app`           | Ember test app (SSR)            |
-| `packages/test-app-ssg`       | Ember test app (SSG)            |
-| `packages/test-app-combined`  | Ember test app (SSR + SSG)      |
-| `packages/test-server`        | Fastify SSR server              |
+| Package                      | Description                |
+| ---------------------------- | -------------------------- |
+| `packages/vite-ember-ssr`    | Core library + test suites |
+| `packages/test-app`          | Ember test app (SSR)       |
+| `packages/test-app-ssg`      | Ember test app (SSG)       |
+| `packages/test-app-combined` | Ember test app (SSR + SSG) |
+| `packages/test-server`       | Fastify SSR server         |
 
 ```sh
 pnpm install

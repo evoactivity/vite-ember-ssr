@@ -9,7 +9,12 @@
 }
 
 html {
-  font-family: system-ui, -apple-system, 'Segoe UI', Roboto, sans-serif;
+  font-family:
+    system-ui,
+    -apple-system,
+    'Segoe UI',
+    Roboto,
+    sans-serif;
   line-height: 1.6;
   color: #1a1a2e;
   background: #f8f9fa;
@@ -22,7 +27,7 @@ body {
 
 /* ─── Navigation ──────────────────────────────────────────────────── */
 
-nav[data-component="navigation"] {
+nav[data-component='navigation'] {
   display: flex;
   gap: 0.25rem;
   padding: 0.75rem 1.5rem;
@@ -31,22 +36,24 @@ nav[data-component="navigation"] {
   flex-wrap: wrap;
 }
 
-nav[data-component="navigation"] a {
+nav[data-component='navigation'] a {
   color: #a3a3c2;
   text-decoration: none;
   padding: 0.4rem 0.85rem;
   border-radius: 6px;
   font-size: 0.875rem;
   font-weight: 500;
-  transition: color 0.15s, background 0.15s;
+  transition:
+    color 0.15s,
+    background 0.15s;
 }
 
-nav[data-component="navigation"] a:hover {
+nav[data-component='navigation'] a:hover {
   color: #fff;
   background: rgba(233, 69, 96, 0.15);
 }
 
-nav[data-component="navigation"] a.active {
+nav[data-component='navigation'] a.active {
   color: #fff;
   background: #e94560;
 }
@@ -80,12 +87,12 @@ p {
 
 /* ─── Index Hero ──────────────────────────────────────────────────── */
 
-[data-route="index"] > p:first-of-type {
+[data-route='index'] > p:first-of-type {
   font-size: 1.05rem;
   color: #6a6a8e;
 }
 
-[data-route="index"] > img {
+[data-route='index'] > img {
   display: block;
   margin: 1rem 0 2rem;
   border-radius: 12px;
@@ -136,7 +143,9 @@ p {
   font-size: 0.9rem;
   font-weight: 600;
   cursor: pointer;
-  transition: border-color 0.15s, background 0.15s;
+  transition:
+    border-color 0.15s,
+    background 0.15s;
 }
 
 .counter-actions button:hover {
@@ -144,7 +153,7 @@ p {
   background: #fef2f4;
 }
 
-.counter-actions button[data-action="reset"] {
+.counter-actions button[data-action='reset'] {
   color: #6a6a8e;
   font-weight: 400;
 }
@@ -243,7 +252,9 @@ p {
   background: #fff;
   border: 1px solid #e2e2ee;
   border-radius: 8px;
-  transition: border-color 0.15s, box-shadow 0.15s;
+  transition:
+    border-color 0.15s,
+    box-shadow 0.15s;
 }
 
 .pokemon-list li:hover {
@@ -267,8 +278,8 @@ p {
 
 /* ─── Pokemon Detail ──────────────────────────────────────────────── */
 
-[data-route="pokemon-fetch.show"],
-[data-route="pokemon-warp-drive.show"] {
+[data-route='pokemon-fetch.show'],
+[data-route='pokemon-warp-drive.show'] {
   background: #fff;
   border: 1px solid #e2e2ee;
   border-radius: 10px;
@@ -276,15 +287,15 @@ p {
   margin-top: 1.5rem;
 }
 
-[data-route="pokemon-fetch.show"] h2,
-[data-route="pokemon-warp-drive.show"] h2 {
+[data-route='pokemon-fetch.show'] h2,
+[data-route='pokemon-warp-drive.show'] h2 {
   font-size: 1.4rem;
   text-transform: capitalize;
   margin-bottom: 0.75rem;
 }
 
-[data-route="pokemon-fetch.show"] img,
-[data-route="pokemon-warp-drive.show"] img {
+[data-route='pokemon-fetch.show'] img,
+[data-route='pokemon-warp-drive.show'] img {
   display: block;
   margin-bottom: 1rem;
   image-rendering: pixelated;
@@ -338,14 +349,14 @@ p {
   color: #6a6a8e;
 }
 
-.pokemon-details dd[data-field="stats"] ul {
+.pokemon-details dd[data-field='stats'] ul {
   list-style: none;
   display: flex;
   flex-wrap: wrap;
   gap: 0.25rem 1rem;
 }
 
-.pokemon-details dd[data-field="stats"] li {
+.pokemon-details dd[data-field='stats'] li {
   font-size: 0.85rem;
   color: #4a4a68;
   text-transform: capitalize;
@@ -381,12 +392,12 @@ button[data-retry]:hover {
 
 /* ─── Contact Page ────────────────────────────────────────────────── */
 
-[data-route="contact"] ul {
+[data-route='contact'] ul {
   list-style: none;
   margin-top: 0.75rem;
 }
 
-[data-route="contact"] li {
+[data-route='contact'] li {
   padding: 0.4rem 0;
   color: #4a4a68;
   font-size: 0.95rem;
@@ -394,6 +405,6 @@ button[data-retry]:hover {
 
 /* ─── About Page ──────────────────────────────────────────────────── */
 
-[data-route="about"] p {
+[data-route='about'] p {
   max-width: 36rem;
 }

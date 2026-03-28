@@ -3,7 +3,9 @@ import { test, expect } from '@playwright/test';
 // ─── SSG Content Visible on Load ─────────────────────────────────────
 
 test.describe('SSG static content is visible before client JS boots', () => {
-  test('index route shows prerendered content immediately', async ({ page }) => {
+  test('index route shows prerendered content immediately', async ({
+    page,
+  }) => {
     // Block JS to see pure static HTML content
     await page.route('**/*.js', (route) => route.abort());
 
@@ -15,23 +17,31 @@ test.describe('SSG static content is visible before client JS boots', () => {
     await expect(page.locator('nav')).toBeVisible();
 
     // Components should be prerendered
-    await expect(page.locator('[data-component="counter-display"]')).toBeVisible();
+    await expect(
+      page.locator('[data-component="counter-display"]'),
+    ).toBeVisible();
     await expect(page.locator('[data-component="item-list"]')).toBeVisible();
     await expect(page.locator('[data-count="0"]')).toBeVisible();
     await expect(page.locator('[data-item-count="5"]')).toBeVisible();
   });
 
-  test('about route shows prerendered content immediately', async ({ page }) => {
+  test('about route shows prerendered content immediately', async ({
+    page,
+  }) => {
     await page.route('**/*.js', (route) => route.abort());
 
     await page.goto('/about');
 
     await expect(page.locator('[data-route="about"]')).toBeVisible();
     await expect(page.locator('h1')).toHaveText('About');
-    await expect(page.locator('[data-component="counter-display"]')).toBeVisible();
+    await expect(
+      page.locator('[data-component="counter-display"]'),
+    ).toBeVisible();
   });
 
-  test('contact route shows prerendered content immediately', async ({ page }) => {
+  test('contact route shows prerendered content immediately', async ({
+    page,
+  }) => {
     await page.route('**/*.js', (route) => route.abort());
 
     await page.goto('/contact');
@@ -42,7 +52,9 @@ test.describe('SSG static content is visible before client JS boots', () => {
     await expect(page.locator('text=GitHub: vite-ember-ssr')).toBeVisible();
   });
 
-  test('pokemon-fetch route shows prerendered content with fetched data', async ({ page }) => {
+  test('pokemon-fetch route shows prerendered content with fetched data', async ({
+    page,
+  }) => {
     await page.route('**/*.js', (route) => route.abort());
 
     await page.goto('/pokemon-fetch');
@@ -65,23 +77,33 @@ test.describe('client Ember app boots on SSG pages', () => {
     await page.goto('/');
 
     // Wait for Ember to boot — SSR boundary markers are removed
-    await page.waitForFunction(() => {
-      return !document.getElementById('ssr-body-start');
-    }, { timeout: 15_000 });
+    await page.waitForFunction(
+      () => {
+        return !document.getElementById('ssr-body-start');
+      },
+      { timeout: 15_000 },
+    );
 
     // Content should still be present after client takeover
     await expect(page.locator('[data-route="index"]')).toBeVisible();
     await expect(page.locator('h1')).toHaveText('Welcome to vite-ember-ssr');
-    await expect(page.locator('[data-component="counter-display"]')).toBeVisible();
+    await expect(
+      page.locator('[data-component="counter-display"]'),
+    ).toBeVisible();
     await expect(page.locator('[data-component="item-list"]')).toBeVisible();
   });
 
-  test('SSR boundary markers are removed after client boot', async ({ page }) => {
+  test('SSR boundary markers are removed after client boot', async ({
+    page,
+  }) => {
     await page.goto('/');
 
-    await page.waitForFunction(() => {
-      return !document.getElementById('ssr-body-start');
-    }, { timeout: 15_000 });
+    await page.waitForFunction(
+      () => {
+        return !document.getElementById('ssr-body-start');
+      },
+      { timeout: 15_000 },
+    );
 
     const startMarker = await page.$('#ssr-body-start');
     const endMarker = await page.$('#ssr-body-end');
@@ -92,9 +114,12 @@ test.describe('client Ember app boots on SSG pages', () => {
   test('Ember boots on the about page', async ({ page }) => {
     await page.goto('/about');
 
-    await page.waitForFunction(() => {
-      return !document.getElementById('ssr-body-start');
-    }, { timeout: 15_000 });
+    await page.waitForFunction(
+      () => {
+        return !document.getElementById('ssr-body-start');
+      },
+      { timeout: 15_000 },
+    );
 
     await expect(page.locator('[data-route="about"]')).toBeVisible();
     await expect(page.locator('h1')).toHaveText('About');
@@ -103,9 +128,12 @@ test.describe('client Ember app boots on SSG pages', () => {
   test('Ember boots on the pokemon-fetch page', async ({ page }) => {
     await page.goto('/pokemon-fetch');
 
-    await page.waitForFunction(() => {
-      return !document.getElementById('ssr-body-start');
-    }, { timeout: 15_000 });
+    await page.waitForFunction(
+      () => {
+        return !document.getElementById('ssr-body-start');
+      },
+      { timeout: 15_000 },
+    );
 
     await expect(page.locator('[data-route="pokemon-fetch"]')).toBeVisible();
     await expect(page.locator('[data-pokemon="bulbasaur"]')).toBeVisible();
@@ -119,9 +147,12 @@ test.describe('client-side navigation on SSG pages', () => {
     await page.goto('/');
 
     // Wait for Ember to boot
-    await page.waitForFunction(() => {
-      return !document.getElementById('ssr-body-start');
-    }, { timeout: 15_000 });
+    await page.waitForFunction(
+      () => {
+        return !document.getElementById('ssr-body-start');
+      },
+      { timeout: 15_000 },
+    );
 
     await expect(page.locator('[data-route="index"]')).toBeVisible();
 
@@ -152,12 +183,17 @@ test.describe('client-side navigation on SSG pages', () => {
 // ─── Interactive Components ──────────────────────────────────────────
 
 test.describe('SSG counter component interactivity', () => {
-  test('increment and decrement buttons work after client boot', async ({ page }) => {
+  test('increment and decrement buttons work after client boot', async ({
+    page,
+  }) => {
     await page.goto('/');
 
-    await page.waitForFunction(() => {
-      return !document.getElementById('ssr-body-start');
-    }, { timeout: 15_000 });
+    await page.waitForFunction(
+      () => {
+        return !document.getElementById('ssr-body-start');
+      },
+      { timeout: 15_000 },
+    );
 
     // Initial state
     await expect(page.locator('[data-count="0"]')).toBeVisible();
@@ -192,9 +228,12 @@ test.describe('SSG item list filtering', () => {
   test('filters items by category after client boot', async ({ page }) => {
     await page.goto('/');
 
-    await page.waitForFunction(() => {
-      return !document.getElementById('ssr-body-start');
-    }, { timeout: 15_000 });
+    await page.waitForFunction(
+      () => {
+        return !document.getElementById('ssr-body-start');
+      },
+      { timeout: 15_000 },
+    );
 
     // Initially shows all 5 items
     await expect(page.locator('[data-item-count="5"]')).toBeVisible();
@@ -235,15 +274,20 @@ test.describe('SSG shoebox prevents double-fetching', () => {
   test('shoebox script tag is removed after client boot', async ({ page }) => {
     await page.goto('/pokemon-fetch');
 
-    await page.waitForFunction(() => {
-      return !document.getElementById('ssr-body-start');
-    }, { timeout: 15_000 });
+    await page.waitForFunction(
+      () => {
+        return !document.getElementById('ssr-body-start');
+      },
+      { timeout: 15_000 },
+    );
 
     const shoeboxEl = await page.$('#vite-ember-ssr-shoebox');
     expect(shoeboxEl).toBeNull();
   });
 
-  test('no duplicate PokeAPI requests on initial pokemon-fetch page load', async ({ page }) => {
+  test('no duplicate PokeAPI requests on initial pokemon-fetch page load', async ({
+    page,
+  }) => {
     const pokeApiRequests = [];
     page.on('request', (request) => {
       if (request.url().includes('pokeapi.co')) {
@@ -253,9 +297,12 @@ test.describe('SSG shoebox prevents double-fetching', () => {
 
     await page.goto('/pokemon-fetch');
 
-    await page.waitForFunction(() => {
-      return !document.getElementById('ssr-body-start');
-    }, { timeout: 15_000 });
+    await page.waitForFunction(
+      () => {
+        return !document.getElementById('ssr-body-start');
+      },
+      { timeout: 15_000 },
+    );
 
     // Pokemon content should be visible (served from shoebox)
     await expect(page.locator('[data-route="pokemon-fetch"]')).toBeVisible();
@@ -265,7 +312,9 @@ test.describe('SSG shoebox prevents double-fetching', () => {
     expect(pokeApiRequests).toHaveLength(0);
   });
 
-  test('subsequent client-side navigation still fetches normally', async ({ page }) => {
+  test('subsequent client-side navigation still fetches normally', async ({
+    page,
+  }) => {
     const pokeApiRequests = [];
     page.on('request', (request) => {
       if (request.url().includes('pokeapi.co')) {
@@ -275,9 +324,12 @@ test.describe('SSG shoebox prevents double-fetching', () => {
 
     // Initial load — shoebox prevents API calls
     await page.goto('/pokemon-fetch');
-    await page.waitForFunction(() => {
-      return !document.getElementById('ssr-body-start');
-    }, { timeout: 15_000 });
+    await page.waitForFunction(
+      () => {
+        return !document.getElementById('ssr-body-start');
+      },
+      { timeout: 15_000 },
+    );
     await expect(page.locator('[data-pokemon="bulbasaur"]')).toBeVisible();
     expect(pokeApiRequests).toHaveLength(0);
 
@@ -287,18 +339,24 @@ test.describe('SSG shoebox prevents double-fetching', () => {
     await page.locator('[data-pokemon="charmander"] a').click();
     await page.waitForURL('/pokemon-fetch/charmander', { timeout: 10_000 });
 
-    await expect(page.locator('[data-pokemon-name="charmander"]')).toBeVisible({ timeout: 10_000 });
+    await expect(page.locator('[data-pokemon-name="charmander"]')).toBeVisible({
+      timeout: 10_000,
+    });
 
     // NOW there should be API requests (the detail fetch for charmander)
     expect(pokeApiRequests.length).toBeGreaterThan(0);
-    expect(pokeApiRequests.some((url) => url.includes('pokemon/charmander'))).toBe(true);
+    expect(
+      pokeApiRequests.some((url) => url.includes('pokemon/charmander')),
+    ).toBe(true);
   });
 });
 
 // ─── Navigation links work as static file links (no JS) ─────────────
 
 test.describe('SSG navigation works as static links without JS', () => {
-  test('navigation links point to correct static file paths', async ({ page }) => {
+  test('navigation links point to correct static file paths', async ({
+    page,
+  }) => {
     await page.route('**/*.js', (route) => route.abort());
 
     await page.goto('/');

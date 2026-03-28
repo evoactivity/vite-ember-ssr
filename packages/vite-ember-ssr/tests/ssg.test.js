@@ -48,7 +48,9 @@ describe('SSG output file structure', () => {
   });
 
   it('generates pokemon-fetch/index.html', async () => {
-    const exists = await fileExists(resolve(ssgDist, 'pokemon-fetch/index.html'));
+    const exists = await fileExists(
+      resolve(ssgDist, 'pokemon-fetch/index.html'),
+    );
     expect(exists).toBe(true);
   });
 
@@ -101,8 +103,12 @@ describe('SSG HTML structure', () => {
       ['index', 'about', 'contact', 'pokemon-fetch'].map(readSsgHtml),
     );
 
-    const jsBundle = htmls[0].match(/src="(\/assets\/main-[a-zA-Z0-9_-]+\.js)"/)?.[1];
-    const cssBundle = htmls[0].match(/href="(\/assets\/main-[a-zA-Z0-9_-]+\.css)"/)?.[1];
+    const jsBundle = htmls[0].match(
+      /src="(\/assets\/main-[a-zA-Z0-9_-]+\.js)"/,
+    )?.[1];
+    const cssBundle = htmls[0].match(
+      /href="(\/assets\/main-[a-zA-Z0-9_-]+\.css)"/,
+    )?.[1];
 
     expect(jsBundle).toBeDefined();
     expect(cssBundle).toBeDefined();
@@ -364,7 +370,9 @@ describe('SSG shoebox (fetch replay data)', () => {
     );
     const entries = JSON.parse(scriptMatch[1]);
 
-    const listEntry = entries.find((e) => e.url.includes('pokeapi.co/api/v2/pokemon'));
+    const listEntry = entries.find((e) =>
+      e.url.includes('pokeapi.co/api/v2/pokemon'),
+    );
     expect(listEntry).toBeDefined();
     expect(listEntry.status).toBe(200);
 
@@ -442,7 +450,9 @@ describe('SSG navigation rendering', () => {
       expect(html).toMatch(/<a[^>]+href="\/"[^>]*>Home<\/a>/);
       expect(html).toMatch(/<a[^>]+href="\/about"[^>]*>About<\/a>/);
       expect(html).toMatch(/<a[^>]+href="\/contact"[^>]*>Contact<\/a>/);
-      expect(html).toMatch(/<a[^>]+href="\/pokemon-fetch"[^>]*>Pokémon \(Fetch\)<\/a>/);
+      expect(html).toMatch(
+        /<a[^>]+href="\/pokemon-fetch"[^>]*>Pokémon \(Fetch\)<\/a>/,
+      );
     }
   });
 
@@ -469,7 +479,9 @@ describe('SSG navigation rendering', () => {
     expect(contactOnContact?.[0]).toContain('active');
 
     // Pokemon: Pokemon link is active
-    const pokemonOnPokemon = pokemon.match(/<a[^>]+href="\/pokemon-fetch"[^>]*>/);
+    const pokemonOnPokemon = pokemon.match(
+      /<a[^>]+href="\/pokemon-fetch"[^>]*>/,
+    );
     expect(pokemonOnPokemon?.[0]).toContain('active');
   });
 });

@@ -76,9 +76,10 @@ async function setupDev(app) {
     } catch (e) {
       if (e instanceof Error) vite.ssrFixStacktrace(e);
       app.log.error(e);
-      return reply.code(500).type('text/plain').send(
-        e instanceof Error ? e.stack : String(e),
-      );
+      return reply
+        .code(500)
+        .type('text/plain')
+        .send(e instanceof Error ? e.stack : String(e));
     }
   });
 }
@@ -94,9 +95,7 @@ async function setupProd(app) {
     index: false, // Don't serve index.html for directory requests
   });
 
-  const { createSsrApp } = await import(
-    resolve(appDist, 'server/app-ssr.mjs')
-  );
+  const { createSsrApp } = await import(resolve(appDist, 'server/app-ssr.mjs'));
   const template = await readFile(
     resolve(appDist, 'client/index.html'),
     'utf-8',
@@ -117,9 +116,10 @@ async function setupProd(app) {
       return reply.code(statusCode).type('text/html').send(html);
     } catch (e) {
       app.log.error(e);
-      return reply.code(500).type('text/plain').send(
-        e instanceof Error ? e.stack : String(e),
-      );
+      return reply
+        .code(500)
+        .type('text/plain')
+        .send(e instanceof Error ? e.stack : String(e));
     }
   });
 }
@@ -127,7 +127,9 @@ async function setupProd(app) {
 // ─── Utilities ───────────────────────────────────────────────────────
 
 function isAsset(url) {
-  return /\.(js|mjs|css|ts|tsx|jsx|json|map|ico|png|jpg|jpeg|gif|svg|woff2?|ttf|eot|webp|avif)(\?.*)?$/.test(url);
+  return /\.(js|mjs|css|ts|tsx|jsx|json|map|ico|png|jpg|jpeg|gif|svg|woff2?|ttf|eot|webp|avif)(\?.*)?$/.test(
+    url,
+  );
 }
 
 start();

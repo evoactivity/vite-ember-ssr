@@ -27,9 +27,11 @@ const EMBER_SSR_NO_EXTERNAL: (RegExp | string)[] = [
  */
 function flatPlugins(plugins: PluginOption[] | undefined): Plugin[] {
   if (!plugins) return [];
-  return (plugins as unknown[]).flat(Infinity).filter(
-    (p): p is Plugin => p != null && typeof p === 'object' && 'name' in p,
-  );
+  return (plugins as unknown[])
+    .flat(Infinity)
+    .filter(
+      (p): p is Plugin => p != null && typeof p === 'object' && 'name' in p,
+    );
 }
 
 export interface EmberSsrPluginOptions {
@@ -116,7 +118,11 @@ export function emberSsr(options: EmberSsrPluginOptions = {}): Plugin {
       const outDir = join(resolvedConfig.root, resolvedConfig.build.outDir);
       const targetPath = join(outDir, 'package.json');
       await mkdir(outDir, { recursive: true });
-      await writeFile(targetPath, JSON.stringify({ type: 'module' }, null, 2), 'utf-8');
+      await writeFile(
+        targetPath,
+        JSON.stringify({ type: 'module' }, null, 2),
+        'utf-8',
+      );
     },
   };
 }
@@ -214,10 +220,7 @@ export function emberSsg(options: EmberSsgPluginOptions): Plugin {
     name: 'vite-ember-ssg',
 
     config(userConfig): UserConfig {
-      const noExternal = [
-        ...EMBER_SSR_NO_EXTERNAL,
-        ...additionalNoExternal,
-      ];
+      const noExternal = [...EMBER_SSR_NO_EXTERNAL, ...additionalNoExternal];
 
       // During the child SSR build, only provide ssr.noExternal —
       // don't override build.outDir (the parent sets it explicitly).
@@ -235,8 +238,7 @@ export function emberSsg(options: EmberSsgPluginOptions): Plugin {
       // Only set outDir when:
       // - the user explicitly passed outDir to emberSsg, OR
       // - emberSsr is NOT present (standalone SSG mode, default 'dist')
-      const outDir =
-        explicitOutDir ?? (isCombined ? undefined : 'dist');
+      const outDir = explicitOutDir ?? (isCombined ? undefined : 'dist');
 
       return {
         ssr: { noExternal },
@@ -307,10 +309,7 @@ export function emberSsg(options: EmberSsgPluginOptions): Plugin {
             sourcemap: false,
           },
           ssr: {
-            noExternal: [
-              ...EMBER_SSR_NO_EXTERNAL,
-              ...additionalNoExternal,
-            ],
+            noExternal: [...EMBER_SSR_NO_EXTERNAL, ...additionalNoExternal],
           },
         });
       } catch (e) {
@@ -341,9 +340,7 @@ export function emberSsg(options: EmberSsgPluginOptions): Plugin {
         const ssrBundlePath = join(ssrOutDir, `${entryBasename}.mjs`);
 
         // Use pathToFileURL + dynamic import to load the built bundle
-        const ssrModule = await import(
-          pathToFileURL(ssrBundlePath).href
-        );
+        const ssrModule = await import(pathToFileURL(ssrBundlePath).href);
         const createSsrApp = ssrModule.createSsrApp;
 
         if (typeof createSsrApp !== 'function') {

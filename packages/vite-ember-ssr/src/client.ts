@@ -31,7 +31,8 @@ const SHOEBOX_SCRIPT_ID = 'vite-ember-ssr-shoebox';
 let _originalFetch: typeof fetch | null = null;
 
 /** Map of URL → { entry, refCount } for reference-counted consumption */
-let _shoeboxMap: Map<string, { entry: ShoeboxEntry; refCount: number }> | null = null;
+let _shoeboxMap: Map<string, { entry: ShoeboxEntry; refCount: number }> | null =
+  null;
 
 /**
  * Installs the shoebox fetch interceptor on the client.

@@ -6,7 +6,11 @@
  * normalizes the response into JSON:API format for WarpDrive's
  * cache.
  */
-import type { Handler, RequestContext, NextFn } from '@warp-drive/core/types/request';
+import type {
+  Handler,
+  RequestContext,
+  NextFn,
+} from '@warp-drive/core/types/request';
 
 const POKEAPI_HOST = 'https://pokeapi.co';
 

@@ -11,11 +11,15 @@
     "test:browser": "pnpm --filter vite-ember-ssr test:browser",
     "test:all": "pnpm --filter vite-ember-ssr test:all",
     "demo": "pnpm build && pnpm --filter test-server start",
-    "clean": "rm -rf packages/*/dist"
+    "clean": "rm -rf packages/*/dist",
+    "format": "prettier --write ."
   },
   "keywords": [],
   "author": "Liam Potter",
   "license": "MIT",
   "packageManager": "pnpm@10.24.0",
-  "type": "module"
+  "type": "module",
+  "devDependencies": {
+    "prettier": "^3.8.1"
+  }
 }

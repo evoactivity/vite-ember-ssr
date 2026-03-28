@@ -15,7 +15,9 @@ test.describe('SSR content is visible before client JS boots', () => {
     await expect(page.locator('nav')).toBeVisible();
 
     // Components should be SSR-rendered
-    await expect(page.locator('[data-component="counter-display"]')).toBeVisible();
+    await expect(
+      page.locator('[data-component="counter-display"]'),
+    ).toBeVisible();
     await expect(page.locator('[data-component="item-list"]')).toBeVisible();
     await expect(page.locator('[data-count="0"]')).toBeVisible();
     await expect(page.locator('[data-item-count="5"]')).toBeVisible();
@@ -28,7 +30,9 @@ test.describe('SSR content is visible before client JS boots', () => {
 
     await expect(page.locator('[data-route="about"]')).toBeVisible();
     await expect(page.locator('h1')).toHaveText('About');
-    await expect(page.locator('[data-component="counter-display"]')).toBeVisible();
+    await expect(
+      page.locator('[data-component="counter-display"]'),
+    ).toBeVisible();
   });
 });
 
@@ -40,23 +44,33 @@ test.describe('client Ember app boots and takes over', () => {
 
     // Wait for Ember to boot — the ember-view class on body or
     // the disappearance of SSR boundary markers indicates Ember took over
-    await page.waitForFunction(() => {
-      return !document.getElementById('ssr-body-start');
-    }, { timeout: 15_000 });
+    await page.waitForFunction(
+      () => {
+        return !document.getElementById('ssr-body-start');
+      },
+      { timeout: 15_000 },
+    );
 
     // Content should still be present after client takeover
     await expect(page.locator('[data-route="index"]')).toBeVisible();
     await expect(page.locator('h1')).toHaveText('Welcome to vite-ember-ssr');
-    await expect(page.locator('[data-component="counter-display"]')).toBeVisible();
+    await expect(
+      page.locator('[data-component="counter-display"]'),
+    ).toBeVisible();
     await expect(page.locator('[data-component="item-list"]')).toBeVisible();
   });
 
-  test('SSR boundary markers are removed after client boot', async ({ page }) => {
+  test('SSR boundary markers are removed after client boot', async ({
+    page,
+  }) => {
     await page.goto('/');
 
-    await page.waitForFunction(() => {
-      return !document.getElementById('ssr-body-start');
-    }, { timeout: 15_000 });
+    await page.waitForFunction(
+      () => {
+        return !document.getElementById('ssr-body-start');
+      },
+      { timeout: 15_000 },
+    );
 
     // Boundary markers should be gone
     const startMarker = await page.$('#ssr-body-start');
@@ -69,13 +83,18 @@ test.describe('client Ember app boots and takes over', () => {
 // ─── Client-Side Navigation (proves Ember router is active) ──────────
 
 test.describe('client-side navigation via Ember router', () => {
-  test('navigates between routes without full page reload', async ({ page }) => {
+  test('navigates between routes without full page reload', async ({
+    page,
+  }) => {
     await page.goto('/');
 
     // Wait for Ember to boot
-    await page.waitForFunction(() => {
-      return !document.getElementById('ssr-body-start');
-    }, { timeout: 15_000 });
+    await page.waitForFunction(
+      () => {
+        return !document.getElementById('ssr-body-start');
+      },
+      { timeout: 15_000 },
+    );
 
     // Verify we're on index
     await expect(page.locator('[data-route="index"]')).toBeVisible();
@@ -114,9 +133,12 @@ test.describe('counter component interactivity', () => {
     await page.goto('/');
 
     // Wait for Ember to boot
-    await page.waitForFunction(() => {
-      return !document.getElementById('ssr-body-start');
-    }, { timeout: 15_000 });
+    await page.waitForFunction(
+      () => {
+        return !document.getElementById('ssr-body-start');
+      },
+      { timeout: 15_000 },
+    );
 
     // Initial state
     await expect(page.locator('[data-count="0"]')).toBeVisible();
@@ -149,13 +171,18 @@ test.describe('counter component interactivity', () => {
     await expect(page.locator('[data-status="zero"]')).toBeVisible();
   });
 
-  test('counter state persists across client-side navigation', async ({ page }) => {
+  test('counter state persists across client-side navigation', async ({
+    page,
+  }) => {
     await page.goto('/');
 
     // Wait for Ember to boot
-    await page.waitForFunction(() => {
-      return !document.getElementById('ssr-body-start');
-    }, { timeout: 15_000 });
+    await page.waitForFunction(
+      () => {
+        return !document.getElementById('ssr-body-start');
+      },
+      { timeout: 15_000 },
+    );
 
     // Increment counter to 5
     const incrementBtn = page.locator('[data-action="increment"]');
@@ -188,9 +215,12 @@ test.describe('item list filtering', () => {
     await page.goto('/');
 
     // Wait for Ember to boot
-    await page.waitForFunction(() => {
-      return !document.getElementById('ssr-body-start');
-    }, { timeout: 15_000 });
+    await page.waitForFunction(
+      () => {
+        return !document.getElementById('ssr-body-start');
+      },
+      { timeout: 15_000 },
+    );
 
     // Initially shows all 5 items
     await expect(page.locator('[data-item-count="5"]')).toBeVisible();
@@ -203,7 +233,9 @@ test.describe('item list filtering', () => {
     await expect(page.locator('[data-item-count="2"]')).toBeVisible();
     await expect(page.locator('[data-filter="framework"]')).toBeVisible();
     await expect(page.locator('.item-entries li')).toHaveCount(2);
-    await expect(page.locator('[data-item-category="framework"]')).toHaveCount(2);
+    await expect(page.locator('[data-item-category="framework"]')).toHaveCount(
+      2,
+    );
 
     // Click "tooling" filter
     await page.locator('[data-category="tooling"]').click();
@@ -231,7 +263,9 @@ test.describe('item list filtering', () => {
 // ─── Pokemon-fetch routes with fetch (SSR + client) ─────────────────
 
 test.describe('pokemon-fetch routes with fetched data', () => {
-  test('pokemon list page shows SSR content with fetched data (no JS)', async ({ page }) => {
+  test('pokemon list page shows SSR content with fetched data (no JS)', async ({
+    page,
+  }) => {
     // Block JS to verify pure SSR
     await page.route('**/*.js', (route) => route.abort());
 
@@ -247,7 +281,9 @@ test.describe('pokemon-fetch routes with fetched data', () => {
     await expect(page.locator('[data-pokemon="squirtle"]')).toBeVisible();
   });
 
-  test('pokemon detail page shows SSR content with fetched data (no JS)', async ({ page }) => {
+  test('pokemon detail page shows SSR content with fetched data (no JS)', async ({
+    page,
+  }) => {
     await page.route('**/*.js', (route) => route.abort());
 
     await page.goto('/pokemon-fetch/pikachu');
@@ -256,7 +292,9 @@ test.describe('pokemon-fetch routes with fetched data', () => {
     await expect(page.locator('[data-component="pokemon-list"]')).toBeVisible();
 
     // Detail view with fetched data
-    await expect(page.locator('[data-route="pokemon-fetch.show"]')).toBeVisible();
+    await expect(
+      page.locator('[data-route="pokemon-fetch.show"]'),
+    ).toBeVisible();
     await expect(page.locator('[data-pokemon-name="pikachu"]')).toBeVisible();
     await expect(page.locator('h2')).toHaveText('pikachu');
     await expect(page.locator('[data-field="id"]')).toHaveText('25');
@@ -264,13 +302,18 @@ test.describe('pokemon-fetch routes with fetched data', () => {
     await expect(page.locator('[data-sprite]')).toBeVisible();
   });
 
-  test('client-side navigation to pokemon list fetches data', async ({ page }) => {
+  test('client-side navigation to pokemon list fetches data', async ({
+    page,
+  }) => {
     await page.goto('/');
 
     // Wait for Ember to boot
-    await page.waitForFunction(() => {
-      return !document.getElementById('ssr-body-start');
-    }, { timeout: 15_000 });
+    await page.waitForFunction(
+      () => {
+        return !document.getElementById('ssr-body-start');
+      },
+      { timeout: 15_000 },
+    );
 
     // Navigate to pokemon via client-side link
     await page.locator('nav a:has-text("Pokémon (Fetch)")').click();
@@ -286,9 +329,12 @@ test.describe('pokemon-fetch routes with fetched data', () => {
     await page.goto('/pokemon-fetch');
 
     // Wait for Ember to boot
-    await page.waitForFunction(() => {
-      return !document.getElementById('ssr-body-start');
-    }, { timeout: 15_000 });
+    await page.waitForFunction(
+      () => {
+        return !document.getElementById('ssr-body-start');
+      },
+      { timeout: 15_000 },
+    );
 
     // Click on bulbasaur
     await page.locator('[data-pokemon="bulbasaur"] a').click();
@@ -305,13 +351,18 @@ test.describe('pokemon-fetch routes with fetched data', () => {
     await expect(page.locator('[data-component="pokemon-list"]')).toBeVisible();
   });
 
-  test('navigating between pokemon detail pages updates content', async ({ page }) => {
+  test('navigating between pokemon detail pages updates content', async ({
+    page,
+  }) => {
     await page.goto('/pokemon-fetch/bulbasaur');
 
     // Wait for Ember to boot
-    await page.waitForFunction(() => {
-      return !document.getElementById('ssr-body-start');
-    }, { timeout: 15_000 });
+    await page.waitForFunction(
+      () => {
+        return !document.getElementById('ssr-body-start');
+      },
+      { timeout: 15_000 },
+    );
 
     await expect(page.locator('[data-pokemon-name="bulbasaur"]')).toBeVisible();
     await expect(page.locator('[data-field="id"]')).toHaveText('1');
@@ -321,25 +372,33 @@ test.describe('pokemon-fetch routes with fetched data', () => {
     await page.waitForURL('/pokemon-fetch/charmander', { timeout: 10_000 });
 
     // Content should update to charmander
-    await expect(page.locator('[data-pokemon-name="charmander"]')).toBeVisible();
+    await expect(
+      page.locator('[data-pokemon-name="charmander"]'),
+    ).toBeVisible();
     await expect(page.locator('[data-field="id"]')).toHaveText('4');
     await expect(page.locator('[data-type="fire"]')).toBeVisible();
 
     // Bulbasaur data should be gone
-    await expect(page.locator('[data-pokemon-name="bulbasaur"]')).not.toBeAttached();
+    await expect(
+      page.locator('[data-pokemon-name="bulbasaur"]'),
+    ).not.toBeAttached();
   });
 });
 
 // ─── Pokemon WarpDrive SSR content (proves server returns content, not loading) ─
 
 test.describe('pokemon-warp-drive SSR shows content, not loading state', () => {
-  test('pokemon list page shows SSR content with WarpDrive data (no JS)', async ({ page }) => {
+  test('pokemon list page shows SSR content with WarpDrive data (no JS)', async ({
+    page,
+  }) => {
     // Block JS to verify pure SSR content
     await page.route('**/*.js', (route) => route.abort());
 
     await page.goto('/pokemon-warp-drive');
 
-    await expect(page.locator('[data-route="pokemon-warp-drive"]')).toBeVisible();
+    await expect(
+      page.locator('[data-route="pokemon-warp-drive"]'),
+    ).toBeVisible();
     await expect(page.locator('h1')).toHaveText('Pokémon (WarpDrive)');
     await expect(page.locator('[data-component="pokemon-list"]')).toBeVisible();
 
@@ -353,7 +412,9 @@ test.describe('pokemon-warp-drive SSR shows content, not loading state', () => {
     await expect(page.locator('[data-error]')).not.toBeAttached();
   });
 
-  test('pokemon detail page shows SSR content with WarpDrive data (no JS)', async ({ page }) => {
+  test('pokemon detail page shows SSR content with WarpDrive data (no JS)', async ({
+    page,
+  }) => {
     await page.route('**/*.js', (route) => route.abort());
 
     await page.goto('/pokemon-warp-drive/pikachu');
@@ -362,7 +423,9 @@ test.describe('pokemon-warp-drive SSR shows content, not loading state', () => {
     await expect(page.locator('[data-component="pokemon-list"]')).toBeVisible();
 
     // Detail view with WarpDrive-fetched data
-    await expect(page.locator('[data-route="pokemon-warp-drive.show"]')).toBeVisible();
+    await expect(
+      page.locator('[data-route="pokemon-warp-drive.show"]'),
+    ).toBeVisible();
     await expect(page.locator('[data-pokemon-name="pikachu"]')).toBeVisible();
     await expect(page.locator('h2')).toHaveText('pikachu');
     await expect(page.locator('[data-field="id"]')).toBeVisible();
@@ -374,17 +437,23 @@ test.describe('pokemon-warp-drive SSR shows content, not loading state', () => {
     await expect(page.locator('[data-error]')).not.toBeAttached();
   });
 
-  test('different pokemon detail pages render correct SSR content (no JS)', async ({ page }) => {
+  test('different pokemon detail pages render correct SSR content (no JS)', async ({
+    page,
+  }) => {
     await page.route('**/*.js', (route) => route.abort());
 
     await page.goto('/pokemon-warp-drive/charmander');
 
-    await expect(page.locator('[data-pokemon-name="charmander"]')).toBeVisible();
+    await expect(
+      page.locator('[data-pokemon-name="charmander"]'),
+    ).toBeVisible();
     await expect(page.locator('[data-type="fire"]')).toBeVisible();
     await expect(page.locator('[data-field="id"]')).toBeVisible();
 
     // Should NOT contain pikachu data (no cross-contamination)
-    await expect(page.locator('[data-pokemon-name="pikachu"]')).not.toBeAttached();
+    await expect(
+      page.locator('[data-pokemon-name="pikachu"]'),
+    ).not.toBeAttached();
 
     // Loading/error states should NOT be present
     await expect(page.locator('[data-loading]')).not.toBeAttached();
@@ -394,7 +463,9 @@ test.describe('pokemon-warp-drive SSR shows content, not loading state', () => {
 // ─── Shoebox: data transfer from server to client ───────────────────
 
 test.describe('shoebox prevents double-fetching', () => {
-  test('shoebox script tag is present in SSR HTML (no JS)', async ({ page }) => {
+  test('shoebox script tag is present in SSR HTML (no JS)', async ({
+    page,
+  }) => {
     await page.route('**/*.js', (route) => route.abort());
 
     await page.goto('/pokemon-fetch');
@@ -418,16 +489,21 @@ test.describe('shoebox prevents double-fetching', () => {
     await page.goto('/pokemon-fetch');
 
     // Wait for client Ember to boot
-    await page.waitForFunction(() => {
-      return !document.getElementById('ssr-body-start');
-    }, { timeout: 15_000 });
+    await page.waitForFunction(
+      () => {
+        return !document.getElementById('ssr-body-start');
+      },
+      { timeout: 15_000 },
+    );
 
     // Shoebox should be consumed and removed
     const shoeboxEl = await page.$('#vite-ember-ssr-shoebox');
     expect(shoeboxEl).toBeNull();
   });
 
-  test('no duplicate PokeAPI requests on initial pokemon-fetch page load', async ({ page }) => {
+  test('no duplicate PokeAPI requests on initial pokemon-fetch page load', async ({
+    page,
+  }) => {
     // Track all requests to the PokeAPI
     const pokeApiRequests = [];
     page.on('request', (request) => {
@@ -439,9 +515,12 @@ test.describe('shoebox prevents double-fetching', () => {
     await page.goto('/pokemon-fetch');
 
     // Wait for Ember to boot and content to be visible
-    await page.waitForFunction(() => {
-      return !document.getElementById('ssr-body-start');
-    }, { timeout: 15_000 });
+    await page.waitForFunction(
+      () => {
+        return !document.getElementById('ssr-body-start');
+      },
+      { timeout: 15_000 },
+    );
 
     // Pokemon content should be visible (served from shoebox, not re-fetched)
     await expect(page.locator('[data-route="pokemon-fetch"]')).toBeVisible();
@@ -452,7 +531,9 @@ test.describe('shoebox prevents double-fetching', () => {
     expect(pokeApiRequests).toHaveLength(0);
   });
 
-  test('no duplicate PokeAPI requests on initial pokemon-fetch detail load', async ({ page }) => {
+  test('no duplicate PokeAPI requests on initial pokemon-fetch detail load', async ({
+    page,
+  }) => {
     const pokeApiRequests = [];
     page.on('request', (request) => {
       if (request.url().includes('pokeapi.co')) {
@@ -463,9 +544,12 @@ test.describe('shoebox prevents double-fetching', () => {
     await page.goto('/pokemon-fetch/pikachu');
 
     // Wait for Ember to boot
-    await page.waitForFunction(() => {
-      return !document.getElementById('ssr-body-start');
-    }, { timeout: 15_000 });
+    await page.waitForFunction(
+      () => {
+        return !document.getElementById('ssr-body-start');
+      },
+      { timeout: 15_000 },
+    );
 
     // Content should be visible
     await expect(page.locator('[data-pokemon-name="pikachu"]')).toBeVisible();
@@ -475,7 +559,9 @@ test.describe('shoebox prevents double-fetching', () => {
     expect(pokeApiRequests).toHaveLength(0);
   });
 
-  test('no duplicate PokeAPI requests on initial WarpDrive page load', async ({ page }) => {
+  test('no duplicate PokeAPI requests on initial WarpDrive page load', async ({
+    page,
+  }) => {
     const pokeApiRequests = [];
     page.on('request', (request) => {
       if (request.url().includes('pokeapi.co')) {
@@ -486,19 +572,26 @@ test.describe('shoebox prevents double-fetching', () => {
     await page.goto('/pokemon-warp-drive');
 
     // Wait for Ember to boot
-    await page.waitForFunction(() => {
-      return !document.getElementById('ssr-body-start');
-    }, { timeout: 15_000 });
+    await page.waitForFunction(
+      () => {
+        return !document.getElementById('ssr-body-start');
+      },
+      { timeout: 15_000 },
+    );
 
     // Wait for WarpDrive content to render
-    await expect(page.locator('[data-component="pokemon-list"]')).toBeVisible({ timeout: 10_000 });
+    await expect(page.locator('[data-component="pokemon-list"]')).toBeVisible({
+      timeout: 10_000,
+    });
     await expect(page.locator('[data-pokemon="bulbasaur"]')).toBeVisible();
 
     // No PokeAPI requests from the client — shoebox served them
     expect(pokeApiRequests).toHaveLength(0);
   });
 
-  test('subsequent client-side navigation still fetches normally', async ({ page }) => {
+  test('subsequent client-side navigation still fetches normally', async ({
+    page,
+  }) => {
     const pokeApiRequests = [];
     page.on('request', (request) => {
       if (request.url().includes('pokeapi.co')) {
@@ -508,9 +601,12 @@ test.describe('shoebox prevents double-fetching', () => {
 
     // Initial load — shoebox prevents API calls
     await page.goto('/pokemon-fetch');
-    await page.waitForFunction(() => {
-      return !document.getElementById('ssr-body-start');
-    }, { timeout: 15_000 });
+    await page.waitForFunction(
+      () => {
+        return !document.getElementById('ssr-body-start');
+      },
+      { timeout: 15_000 },
+    );
     await expect(page.locator('[data-pokemon="bulbasaur"]')).toBeVisible();
     expect(pokeApiRequests).toHaveLength(0);
 
@@ -521,61 +617,88 @@ test.describe('shoebox prevents double-fetching', () => {
     await page.waitForURL('/pokemon-fetch/charmander', { timeout: 10_000 });
 
     // Wait for detail content to appear
-    await expect(page.locator('[data-pokemon-name="charmander"]')).toBeVisible({ timeout: 10_000 });
+    await expect(page.locator('[data-pokemon-name="charmander"]')).toBeVisible({
+      timeout: 10_000,
+    });
 
     // NOW there should be API requests (the detail fetch for charmander)
     expect(pokeApiRequests.length).toBeGreaterThan(0);
-    expect(pokeApiRequests.some((url) => url.includes('pokemon/charmander'))).toBe(true);
+    expect(
+      pokeApiRequests.some((url) => url.includes('pokemon/charmander')),
+    ).toBe(true);
   });
 });
 
 test.describe('pokemon-warp-drive routes with WarpDrive store', () => {
-  test('pokemon list loads via WarpDrive after client boot', async ({ page }) => {
+  test('pokemon list loads via WarpDrive after client boot', async ({
+    page,
+  }) => {
     await page.goto('/pokemon-warp-drive');
 
     // Wait for Ember to boot and data to load
-    await page.waitForFunction(() => {
-      return !document.getElementById('ssr-body-start');
-    }, { timeout: 15_000 });
+    await page.waitForFunction(
+      () => {
+        return !document.getElementById('ssr-body-start');
+      },
+      { timeout: 15_000 },
+    );
 
     // Wait for the pokemon list to appear (WarpDrive request resolves)
-    await expect(page.locator('[data-component="pokemon-list"]')).toBeVisible({ timeout: 10_000 });
+    await expect(page.locator('[data-component="pokemon-list"]')).toBeVisible({
+      timeout: 10_000,
+    });
     await expect(page.locator('[data-pokemon="bulbasaur"]')).toBeVisible();
     await expect(page.locator('[data-pokemon="charmander"]')).toBeVisible();
     await expect(page.locator('[data-pokemon="squirtle"]')).toBeVisible();
   });
 
-  test('pokemon detail loads via WarpDrive after client boot', async ({ page }) => {
+  test('pokemon detail loads via WarpDrive after client boot', async ({
+    page,
+  }) => {
     await page.goto('/pokemon-warp-drive/pikachu');
 
     // Wait for Ember to boot
-    await page.waitForFunction(() => {
-      return !document.getElementById('ssr-body-start');
-    }, { timeout: 15_000 });
+    await page.waitForFunction(
+      () => {
+        return !document.getElementById('ssr-body-start');
+      },
+      { timeout: 15_000 },
+    );
 
     // Wait for detail to appear
-    await expect(page.locator('[data-route="pokemon-warp-drive.show"]')).toBeVisible({ timeout: 10_000 });
+    await expect(
+      page.locator('[data-route="pokemon-warp-drive.show"]'),
+    ).toBeVisible({ timeout: 10_000 });
     await expect(page.locator('[data-pokemon-name="pikachu"]')).toBeVisible();
     await expect(page.locator('[data-type="electric"]')).toBeVisible();
     await expect(page.locator('[data-sprite]')).toBeVisible();
     await expect(page.locator('[data-field="id"]')).toBeVisible();
   });
 
-  test('clicking a pokemon navigates to WarpDrive detail page', async ({ page }) => {
+  test('clicking a pokemon navigates to WarpDrive detail page', async ({
+    page,
+  }) => {
     await page.goto('/pokemon-warp-drive');
 
     // Wait for Ember to boot and list to load
-    await page.waitForFunction(() => {
-      return !document.getElementById('ssr-body-start');
-    }, { timeout: 15_000 });
-    await expect(page.locator('[data-component="pokemon-list"]')).toBeVisible({ timeout: 10_000 });
+    await page.waitForFunction(
+      () => {
+        return !document.getElementById('ssr-body-start');
+      },
+      { timeout: 15_000 },
+    );
+    await expect(page.locator('[data-component="pokemon-list"]')).toBeVisible({
+      timeout: 10_000,
+    });
 
     // Click on bulbasaur
     await page.locator('[data-pokemon="bulbasaur"] a').click();
     await page.waitForURL('/pokemon-warp-drive/bulbasaur', { timeout: 10_000 });
 
     // Detail view should show
-    await expect(page.locator('[data-pokemon-name="bulbasaur"]')).toBeVisible({ timeout: 10_000 });
+    await expect(page.locator('[data-pokemon-name="bulbasaur"]')).toBeVisible({
+      timeout: 10_000,
+    });
     await expect(page.locator('[data-type="grass"]')).toBeVisible();
     await expect(page.locator('[data-type="poison"]')).toBeVisible();
   });
@@ -584,41 +707,61 @@ test.describe('pokemon-warp-drive routes with WarpDrive store', () => {
     await page.goto('/');
 
     // Wait for Ember to boot
-    await page.waitForFunction(() => {
-      return !document.getElementById('ssr-body-start');
-    }, { timeout: 15_000 });
+    await page.waitForFunction(
+      () => {
+        return !document.getElementById('ssr-body-start');
+      },
+      { timeout: 15_000 },
+    );
 
     // Navigate via nav link
     await page.locator('nav a:has-text("Pokémon (WarpDrive)")').click();
     await page.waitForURL('/pokemon-warp-drive', { timeout: 10_000 });
 
     // Data loaded via WarpDrive
-    await expect(page.locator('[data-route="pokemon-warp-drive"]')).toBeVisible();
-    await expect(page.locator('[data-component="pokemon-list"]')).toBeVisible({ timeout: 10_000 });
+    await expect(
+      page.locator('[data-route="pokemon-warp-drive"]'),
+    ).toBeVisible();
+    await expect(page.locator('[data-component="pokemon-list"]')).toBeVisible({
+      timeout: 10_000,
+    });
     await expect(page.locator('[data-pokemon="bulbasaur"]')).toBeVisible();
   });
 
-  test('navigating between WarpDrive pokemon detail pages updates content', async ({ page }) => {
+  test('navigating between WarpDrive pokemon detail pages updates content', async ({
+    page,
+  }) => {
     await page.goto('/pokemon-warp-drive/bulbasaur');
 
     // Wait for Ember to boot
-    await page.waitForFunction(() => {
-      return !document.getElementById('ssr-body-start');
-    }, { timeout: 15_000 });
+    await page.waitForFunction(
+      () => {
+        return !document.getElementById('ssr-body-start');
+      },
+      { timeout: 15_000 },
+    );
 
-    await expect(page.locator('[data-pokemon-name="bulbasaur"]')).toBeVisible({ timeout: 10_000 });
+    await expect(page.locator('[data-pokemon-name="bulbasaur"]')).toBeVisible({
+      timeout: 10_000,
+    });
     await expect(page.locator('[data-field="id"]')).toHaveText('bulbasaur');
 
     // Navigate to charmander via the list
     await page.locator('[data-pokemon="charmander"] a').click();
-    await page.waitForURL('/pokemon-warp-drive/charmander', { timeout: 10_000 });
+    await page.waitForURL('/pokemon-warp-drive/charmander', {
+      timeout: 10_000,
+    });
 
     // Content should update to charmander
-    await expect(page.locator('[data-pokemon-name="charmander"]')).toBeVisible({ timeout: 10_000 });
+    await expect(page.locator('[data-pokemon-name="charmander"]')).toBeVisible({
+      timeout: 10_000,
+    });
     await expect(page.locator('[data-field="id"]')).toHaveText('charmander');
     await expect(page.locator('[data-type="fire"]')).toBeVisible();
 
     // Bulbasaur data should be gone
-    await expect(page.locator('[data-pokemon-name="bulbasaur"]')).not.toBeAttached();
+    await expect(
+      page.locator('[data-pokemon-name="bulbasaur"]'),
+    ).not.toBeAttached();
   });
 });

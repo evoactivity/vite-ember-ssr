@@ -22,7 +22,11 @@ beforeAll(async () => {
  * Helper: render a route and return the assembled HTML string.
  */
 async function renderRoute(url, options = {}) {
-  const rendered = await renderEmberApp({ url, createApp: createSsrApp, ...options });
+  const rendered = await renderEmberApp({
+    url,
+    createApp: createSsrApp,
+    ...options,
+  });
   const html = assembleHTML(template, rendered);
   return { html, rendered };
 }
@@ -280,11 +284,13 @@ describe('SSR with fetch in route model hooks', () => {
 
     // Sprite image
     expect(html).toContain('data-sprite');
-    expect(html).toContain('src="https://raw.githubusercontent.com/PokeAPI/sprites/');
+    expect(html).toContain(
+      'src="https://raw.githubusercontent.com/PokeAPI/sprites/',
+    );
 
     // Stats from the API
     expect(html).toContain('data-field="id"');
-    expect(html).toContain('25');  // pikachu's id
+    expect(html).toContain('25'); // pikachu's id
     expect(html).toContain('data-type="electric"');
     expect(html).toContain('data-ability="static"');
 
@@ -432,7 +438,9 @@ describe('SSR shoebox (fetch capture)', () => {
     const entries = JSON.parse(scriptMatch[1]);
 
     // Should have captured the pokemon list fetch
-    const listEntry = entries.find((e) => e.url.includes('pokeapi.co/api/v2/pokemon'));
+    const listEntry = entries.find((e) =>
+      e.url.includes('pokeapi.co/api/v2/pokemon'),
+    );
     expect(listEntry).toBeDefined();
     expect(listEntry.status).toBe(200);
 
@@ -443,7 +451,9 @@ describe('SSR shoebox (fetch capture)', () => {
   }, 15_000);
 
   it('captures both parent and child route fetches for detail pages', async () => {
-    const { html } = await renderRoute('/pokemon-fetch/pikachu', { shoebox: true });
+    const { html } = await renderRoute('/pokemon-fetch/pikachu', {
+      shoebox: true,
+    });
 
     const scriptMatch = html.match(
       /<script type="application\/json" id="vite-ember-ssr-shoebox">([\s\S]*?)<\/script>/,
@@ -452,7 +462,8 @@ describe('SSR shoebox (fetch capture)', () => {
 
     // Should capture the list fetch (parent route) and detail fetch (child route)
     const listEntry = entries.find(
-      (e) => e.url.includes('pokemon?limit=') || e.url.includes('pokemon?limit%3D'),
+      (e) =>
+        e.url.includes('pokemon?limit=') || e.url.includes('pokemon?limit%3D'),
     );
     const detailEntry = entries.find((e) => e.url.includes('pokemon/pikachu'));
 
@@ -466,7 +477,9 @@ describe('SSR shoebox (fetch capture)', () => {
   }, 15_000);
 
   it('captures WarpDrive route fetches', async () => {
-    const { html } = await renderRoute('/pokemon-warp-drive', { shoebox: true });
+    const { html } = await renderRoute('/pokemon-warp-drive', {
+      shoebox: true,
+    });
 
     expect(html).toContain('id="vite-ember-ssr-shoebox"');
 
@@ -501,7 +514,9 @@ describe('SSR shoebox (fetch capture)', () => {
   }, 15_000);
 
   it('still renders route content correctly when shoebox is enabled', async () => {
-    const { html, rendered } = await renderRoute('/pokemon-fetch', { shoebox: true });
+    const { html, rendered } = await renderRoute('/pokemon-fetch', {
+      shoebox: true,
+    });
 
     // Normal rendering still works
     expect(rendered.statusCode).toBe(200);

@@ -41,14 +41,17 @@ async function start() {
   if (typeof createSsrApp !== 'function') {
     throw new Error(
       'Could not find `createSsrApp` export in dist/server/app-ssr.mjs. ' +
-      'Make sure you ran `pnpm build:all` in the test-app-combined package.',
+        'Make sure you ran `pnpm build:all` in the test-app-combined package.',
     );
   }
 
   // Read the SSR template preserved by emberSsg during the client build.
   // When both plugins are used together, emberSsg copies index.html to
   // _template.html before overwriting it with prerendered content.
-  const ssrTemplate = await readFile(resolve(clientDir, '_template.html'), 'utf-8');
+  const ssrTemplate = await readFile(
+    resolve(clientDir, '_template.html'),
+    'utf-8',
+  );
 
   app.get('*', async (request, reply) => {
     const url = request.url;
@@ -81,10 +84,12 @@ async function start() {
       app.log.info({ url, prerendered: false }, 'Dynamic SSR render');
 
       return reply.code(statusCode).type('text/html').send(html);
-
     } catch (e) {
       app.log.error(e, 'SSR request failed');
-      return reply.code(500).type('text/plain').send(e instanceof Error ? e.stack : String(e));
+      return reply
+        .code(500)
+        .type('text/plain')
+        .send(e instanceof Error ? e.stack : String(e));
     }
   });
 
@@ -111,7 +116,8 @@ function resolvePrerenderedPath(clientDir, url) {
 }
 
 function isAssetRequest(url) {
-  const assetExtensions = /\.(js|mjs|css|ts|tsx|jsx|json|map|ico|png|jpg|jpeg|gif|svg|woff|woff2|ttf|eot|webp|avif|webm|mp4)(\?.*)?$/;
+  const assetExtensions =
+    /\.(js|mjs|css|ts|tsx|jsx|json|map|ico|png|jpg|jpeg|gif|svg|woff|woff2|ttf|eot|webp|avif|webm|mp4)(\?.*)?$/;
   return assetExtensions.test(url);
 }
 

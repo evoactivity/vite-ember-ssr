@@ -24,7 +24,9 @@ async function start() {
 
   try {
     await app.listen({ port, host });
-    console.log(`\n  SSR server running at http://${host}:${port} (${isDev ? 'development' : 'production'})\n`);
+    console.log(
+      `\n  SSR server running at http://${host}:${port} (${isDev ? 'development' : 'production'})\n`,
+    );
   } catch (err) {
     app.log.error(err);
     process.exit(1);
@@ -58,7 +60,10 @@ async function setupDevMode(app) {
     }
 
     try {
-      let template = await readFile(resolve(testAppRoot, 'index.html'), 'utf-8');
+      let template = await readFile(
+        resolve(testAppRoot, 'index.html'),
+        'utf-8',
+      );
       template = await vite.transformIndexHtml(url, template);
 
       const { createSsrApp } = await vite.ssrLoadModule(
@@ -68,7 +73,7 @@ async function setupDevMode(app) {
       if (typeof createSsrApp !== 'function') {
         throw new Error(
           'Could not find `createSsrApp` export in app/app-ssr.ts. ' +
-          'Make sure your Ember app exports a createSsrApp factory function.',
+            'Make sure your Ember app exports a createSsrApp factory function.',
         );
       }
 
@@ -82,13 +87,15 @@ async function setupDevMode(app) {
       if (error) app.log.error(error, 'SSR rendering error');
 
       return reply.code(statusCode).type('text/html').send(html);
-
     } catch (e) {
       if (e instanceof Error) {
         vite.ssrFixStacktrace(e);
       }
       app.log.error(e, 'SSR request failed');
-      return reply.code(500).type('text/plain').send(e instanceof Error ? e.stack : String(e));
+      return reply
+        .code(500)
+        .type('text/plain')
+        .send(e instanceof Error ? e.stack : String(e));
     }
   });
 }
@@ -102,7 +109,7 @@ async function setupProductionMode(app) {
     root: resolve(testAppDist, 'client'),
     prefix: '/',
     wildcard: false,
-    index: false,          // Don't serve index.html for directory requests
+    index: false, // Don't serve index.html for directory requests
     serveDotFiles: false,
   });
 
@@ -114,11 +121,14 @@ async function setupProductionMode(app) {
   if (typeof createSsrApp !== 'function') {
     throw new Error(
       'Could not find `createSsrApp` export in dist/server/app-ssr.mjs. ' +
-      'Make sure you ran `pnpm build:all` in the test-app package.',
+        'Make sure you ran `pnpm build:all` in the test-app package.',
     );
   }
 
-  const template = await readFile(resolve(testAppDist, 'client/index.html'), 'utf-8');
+  const template = await readFile(
+    resolve(testAppDist, 'client/index.html'),
+    'utf-8',
+  );
 
   app.get('*', async (request, reply) => {
     const url = request.url;
@@ -138,10 +148,12 @@ async function setupProductionMode(app) {
       if (error) app.log.error(error, 'SSR rendering error');
 
       return reply.code(statusCode).type('text/html').send(html);
-
     } catch (e) {
       app.log.error(e, 'SSR request failed');
-      return reply.code(500).type('text/plain').send(e instanceof Error ? e.stack : String(e));
+      return reply
+        .code(500)
+        .type('text/plain')
+        .send(e instanceof Error ? e.stack : String(e));
     }
   });
 }
@@ -149,7 +161,8 @@ async function setupProductionMode(app) {
 // ─── Utilities ───────────────────────────────────────────────────────
 
 function isAssetRequest(url) {
-  const assetExtensions = /\.(js|mjs|css|ts|tsx|jsx|json|map|ico|png|jpg|jpeg|gif|svg|woff|woff2|ttf|eot|webp|avif|webm|mp4)(\?.*)?$/;
+  const assetExtensions =
+    /\.(js|mjs|css|ts|tsx|jsx|json|map|ico|png|jpg|jpeg|gif|svg|woff|woff2|ttf|eot|webp|avif|webm|mp4)(\?.*)?$/;
   return assetExtensions.test(url);
 }
 

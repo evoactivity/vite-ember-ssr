@@ -69,9 +69,7 @@ async function start() {
   });
 
   // Load the pre-built SSR bundle
-  const { createSsrApp } = await import(
-    resolve(serverDir, 'app-ssr.mjs')
-  );
+  const { createSsrApp } = await import(resolve(serverDir, 'app-ssr.mjs'));
 
   // Read the SSR template preserved by emberSsg during the client build.
   // When both plugins are used together, emberSsg copies index.html to
@@ -114,9 +112,10 @@ async function start() {
       return reply.code(statusCode).type('text/html').send(html);
     } catch (e) {
       app.log.error(e, 'SSR request failed');
-      return reply.code(500).type('text/plain').send(
-        e instanceof Error ? e.stack : String(e),
-      );
+      return reply
+        .code(500)
+        .type('text/plain')
+        .send(e instanceof Error ? e.stack : String(e));
     }
   });
 
@@ -139,7 +138,9 @@ function resolvePrerenderedPath(clientDir, url) {
 }
 
 function isAsset(url) {
-  return /\.(js|mjs|css|ts|tsx|jsx|json|map|ico|png|jpg|jpeg|gif|svg|woff2?|ttf|eot|webp|avif)(\?.*)?$/.test(url);
+  return /\.(js|mjs|css|ts|tsx|jsx|json|map|ico|png|jpg|jpeg|gif|svg|woff2?|ttf|eot|webp|avif)(\?.*)?$/.test(
+    url,
+  );
 }
 
 start();

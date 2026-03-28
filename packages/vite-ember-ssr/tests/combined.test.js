@@ -64,13 +64,19 @@ describe('Combined SSR+SSG build output structure', () => {
   });
 
   it('_template.html contains SSR markers for dynamic rendering', async () => {
-    const template = await readFile(resolve(clientDir, '_template.html'), 'utf-8');
+    const template = await readFile(
+      resolve(clientDir, '_template.html'),
+      'utf-8',
+    );
     expect(template).toContain('<!-- VITE_EMBER_SSR_HEAD -->');
     expect(template).toContain('<!-- VITE_EMBER_SSR_BODY -->');
   });
 
   it('_template.html includes client JS and CSS bundles', async () => {
-    const template = await readFile(resolve(clientDir, '_template.html'), 'utf-8');
+    const template = await readFile(
+      resolve(clientDir, '_template.html'),
+      'utf-8',
+    );
     expect(template).toMatch(/src="\/assets\/main-[a-zA-Z0-9_-]+\.js"/);
     expect(template).toMatch(/href="\/assets\/main-[a-zA-Z0-9_-]+\.css"/);
   });
@@ -96,8 +102,12 @@ describe('Combined mode: prerendered files exist in dist/client/', () => {
 
   it('does NOT generate static files for non-prerendered routes', async () => {
     // pokemon-fetch and pokemon-warp-drive were not in the SSG routes list
-    const pokemonFetchExists = await fileExists(resolve(clientDir, 'pokemon-fetch/index.html'));
-    const pokemonWarpDriveExists = await fileExists(resolve(clientDir, 'pokemon-warp-drive/index.html'));
+    const pokemonFetchExists = await fileExists(
+      resolve(clientDir, 'pokemon-fetch/index.html'),
+    );
+    const pokemonWarpDriveExists = await fileExists(
+      resolve(clientDir, 'pokemon-warp-drive/index.html'),
+    );
     expect(pokemonFetchExists).toBe(false);
     expect(pokemonWarpDriveExists).toBe(false);
   });
@@ -246,7 +256,10 @@ describe('Combined mode: SSR server bundle', () => {
 
     // Read the preserved SSR template — emberSsg copies index.html to
     // _template.html before overwriting it with prerendered content.
-    const template = await readFile(resolve(clientDir, '_template.html'), 'utf-8');
+    const template = await readFile(
+      resolve(clientDir, '_template.html'),
+      'utf-8',
+    );
 
     const result = await render({
       url: '/pokemon-fetch',
@@ -266,7 +279,10 @@ describe('Combined mode: SSR server bundle', () => {
     const bundlePath = resolve(serverDir, 'app-ssr.mjs');
     const { createSsrApp } = await import(pathToFileURL(bundlePath).href);
 
-    const template = await readFile(resolve(clientDir, '_template.html'), 'utf-8');
+    const template = await readFile(
+      resolve(clientDir, '_template.html'),
+      'utf-8',
+    );
 
     const result = await render({
       url: '/about',

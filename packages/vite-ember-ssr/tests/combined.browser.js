@@ -10,7 +10,9 @@ test.describe('Combined: prerendered routes serve static HTML (no JS)', () => {
 
     await expect(page.locator('[data-route="index"]')).toBeVisible();
     await expect(page.locator('h1')).toHaveText('Welcome to vite-ember-ssr');
-    await expect(page.locator('[data-component="counter-display"]')).toBeVisible();
+    await expect(
+      page.locator('[data-component="counter-display"]'),
+    ).toBeVisible();
     await expect(page.locator('[data-component="item-list"]')).toBeVisible();
     await expect(page.locator('[data-count="0"]')).toBeVisible();
   });
@@ -22,10 +24,14 @@ test.describe('Combined: prerendered routes serve static HTML (no JS)', () => {
 
     await expect(page.locator('[data-route="about"]')).toBeVisible();
     await expect(page.locator('h1')).toHaveText('About');
-    await expect(page.locator('[data-component="counter-display"]')).toBeVisible();
+    await expect(
+      page.locator('[data-component="counter-display"]'),
+    ).toBeVisible();
   });
 
-  test('contact route shows prerendered content without JS', async ({ page }) => {
+  test('contact route shows prerendered content without JS', async ({
+    page,
+  }) => {
     await page.route('**/*.js', (route) => route.abort());
 
     await page.goto('/contact');
@@ -51,7 +57,9 @@ test.describe('Combined: non-prerendered routes use dynamic SSR', () => {
     await expect(page.locator('[data-pokemon="charmander"]')).toBeVisible();
   });
 
-  test('dynamic SSR includes shoebox data for fetched routes', async ({ page }) => {
+  test('dynamic SSR includes shoebox data for fetched routes', async ({
+    page,
+  }) => {
     await page.route('**/*.js', (route) => route.abort());
 
     await page.goto('/pokemon-fetch');
@@ -72,21 +80,29 @@ test.describe('Combined: client Ember boots on prerendered pages', () => {
   test('Ember boots and takes over the index page', async ({ page }) => {
     await page.goto('/');
 
-    await page.waitForFunction(() => {
-      return !document.getElementById('ssr-body-start');
-    }, { timeout: 15_000 });
+    await page.waitForFunction(
+      () => {
+        return !document.getElementById('ssr-body-start');
+      },
+      { timeout: 15_000 },
+    );
 
     await expect(page.locator('[data-route="index"]')).toBeVisible();
     await expect(page.locator('h1')).toHaveText('Welcome to vite-ember-ssr');
-    await expect(page.locator('[data-component="counter-display"]')).toBeVisible();
+    await expect(
+      page.locator('[data-component="counter-display"]'),
+    ).toBeVisible();
   });
 
   test('SSR boundary markers are removed after boot', async ({ page }) => {
     await page.goto('/');
 
-    await page.waitForFunction(() => {
-      return !document.getElementById('ssr-body-start');
-    }, { timeout: 15_000 });
+    await page.waitForFunction(
+      () => {
+        return !document.getElementById('ssr-body-start');
+      },
+      { timeout: 15_000 },
+    );
 
     const startMarker = await page.$('#ssr-body-start');
     const endMarker = await page.$('#ssr-body-end');
@@ -98,12 +114,17 @@ test.describe('Combined: client Ember boots on prerendered pages', () => {
 // ─── Client Ember boot on dynamically SSR-rendered pages ─────────────
 
 test.describe('Combined: client Ember boots on dynamic SSR pages', () => {
-  test('Ember boots on the dynamically SSR-rendered pokemon-fetch page', async ({ page }) => {
+  test('Ember boots on the dynamically SSR-rendered pokemon-fetch page', async ({
+    page,
+  }) => {
     await page.goto('/pokemon-fetch');
 
-    await page.waitForFunction(() => {
-      return !document.getElementById('ssr-body-start');
-    }, { timeout: 15_000 });
+    await page.waitForFunction(
+      () => {
+        return !document.getElementById('ssr-body-start');
+      },
+      { timeout: 15_000 },
+    );
 
     await expect(page.locator('[data-route="pokemon-fetch"]')).toBeVisible();
     await expect(page.locator('[data-pokemon="bulbasaur"]')).toBeVisible();
@@ -113,12 +134,17 @@ test.describe('Combined: client Ember boots on dynamic SSR pages', () => {
 // ─── Client-side navigation across both modes ────────────────────────
 
 test.describe('Combined: client-side navigation between prerendered and SSR routes', () => {
-  test('navigates from prerendered route to dynamic SSR route', async ({ page }) => {
+  test('navigates from prerendered route to dynamic SSR route', async ({
+    page,
+  }) => {
     await page.goto('/');
 
-    await page.waitForFunction(() => {
-      return !document.getElementById('ssr-body-start');
-    }, { timeout: 15_000 });
+    await page.waitForFunction(
+      () => {
+        return !document.getElementById('ssr-body-start');
+      },
+      { timeout: 15_000 },
+    );
 
     await expect(page.locator('[data-route="index"]')).toBeVisible();
 
@@ -127,15 +153,20 @@ test.describe('Combined: client-side navigation between prerendered and SSR rout
     await page.waitForURL('/pokemon-fetch', { timeout: 10_000 });
 
     await expect(page.locator('[data-route="pokemon-fetch"]')).toBeVisible();
-    await expect(page.locator('[data-pokemon="bulbasaur"]')).toBeVisible({ timeout: 10_000 });
+    await expect(page.locator('[data-pokemon="bulbasaur"]')).toBeVisible({
+      timeout: 10_000,
+    });
   });
 
   test('navigates from prerendered to prerendered route', async ({ page }) => {
     await page.goto('/');
 
-    await page.waitForFunction(() => {
-      return !document.getElementById('ssr-body-start');
-    }, { timeout: 15_000 });
+    await page.waitForFunction(
+      () => {
+        return !document.getElementById('ssr-body-start');
+      },
+      { timeout: 15_000 },
+    );
 
     // Navigate to About (also prerendered)
     const aboutNav = page.waitForURL('/about', { timeout: 5_000 });
@@ -153,12 +184,17 @@ test.describe('Combined: client-side navigation between prerendered and SSR rout
     await expect(page.locator('h1')).toHaveText('Contact');
   });
 
-  test('navigates back from dynamic SSR route to prerendered route', async ({ page }) => {
+  test('navigates back from dynamic SSR route to prerendered route', async ({
+    page,
+  }) => {
     await page.goto('/pokemon-fetch');
 
-    await page.waitForFunction(() => {
-      return !document.getElementById('ssr-body-start');
-    }, { timeout: 15_000 });
+    await page.waitForFunction(
+      () => {
+        return !document.getElementById('ssr-body-start');
+      },
+      { timeout: 15_000 },
+    );
 
     // Navigate to Home (prerendered)
     await page.locator('nav a:has-text("Home")').click();
@@ -172,12 +208,17 @@ test.describe('Combined: client-side navigation between prerendered and SSR rout
 // ─── Interactive components on prerendered pages ─────────────────────
 
 test.describe('Combined: interactivity works on prerendered pages', () => {
-  test('counter buttons work after client boot on prerendered page', async ({ page }) => {
+  test('counter buttons work after client boot on prerendered page', async ({
+    page,
+  }) => {
     await page.goto('/');
 
-    await page.waitForFunction(() => {
-      return !document.getElementById('ssr-body-start');
-    }, { timeout: 15_000 });
+    await page.waitForFunction(
+      () => {
+        return !document.getElementById('ssr-body-start');
+      },
+      { timeout: 15_000 },
+    );
 
     await expect(page.locator('[data-count="0"]')).toBeVisible();
 
@@ -195,7 +236,9 @@ test.describe('Combined: interactivity works on prerendered pages', () => {
 // ─── Shoebox prevents double-fetch on dynamic SSR pages ──────────────
 
 test.describe('Combined: shoebox prevents double-fetching on SSR pages', () => {
-  test('no duplicate PokeAPI requests on dynamic SSR pokemon-fetch page', async ({ page }) => {
+  test('no duplicate PokeAPI requests on dynamic SSR pokemon-fetch page', async ({
+    page,
+  }) => {
     const pokeApiRequests = [];
     page.on('request', (request) => {
       if (request.url().includes('pokeapi.co')) {
@@ -205,9 +248,12 @@ test.describe('Combined: shoebox prevents double-fetching on SSR pages', () => {
 
     await page.goto('/pokemon-fetch');
 
-    await page.waitForFunction(() => {
-      return !document.getElementById('ssr-body-start');
-    }, { timeout: 15_000 });
+    await page.waitForFunction(
+      () => {
+        return !document.getElementById('ssr-body-start');
+      },
+      { timeout: 15_000 },
+    );
 
     await expect(page.locator('[data-pokemon="bulbasaur"]')).toBeVisible();
 

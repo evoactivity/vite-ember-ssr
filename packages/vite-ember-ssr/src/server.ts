@@ -145,7 +145,7 @@ async function withBrowserGlobals<T>(
   // Install globals
   for (const name of BROWSER_GLOBALS) {
     saved.set(name, Object.getOwnPropertyDescriptor(globalThis, name));
-    const value = (window as unknown as Record<string, unknown>)[name];
+    const value = window[name];
     try {
       Object.defineProperty(globalThis, name, {
         value,
@@ -285,11 +285,13 @@ function serializeShoebox(entries: ShoeboxEntry[]): string {
  * Each call creates a completely fresh environment — there is no
  * shared state between requests.
  */
-export async function renderEmberApp(options: RenderOptions): Promise<RenderResult> {
+export async function renderEmberApp(
+  options: RenderOptions,
+): Promise<RenderResult> {
   const { url, createApp, shoebox = false } = options;
 
   const window = createSSRWindow(url);
-  const document = window.document as unknown as Document;
+  const document = window.document;
 
   let app: EmberApplication | undefined;
   let instance: EmberApplicationInstance | undefined;
@@ -313,7 +315,7 @@ export async function renderEmberApp(options: RenderOptions): Promise<RenderResu
         //   app.boot() → app.buildInstance() → instance.boot(options) → instance.visit(url)
         const bootOptions: BootOptions = {
           isBrowser: false,
-          document,
+          document: document as unknown as Document,
           rootElement: document.body as unknown as Element,
           shouldRender: true,
         };
