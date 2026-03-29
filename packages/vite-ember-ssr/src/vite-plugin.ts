@@ -1,6 +1,6 @@
 import type { Plugin, PluginOption, ResolvedConfig, UserConfig } from 'vite';
 import { join, dirname } from 'node:path';
-import { mkdir, writeFile, readFile, rm, copyFile } from 'node:fs/promises';
+import { mkdir, writeFile, readFile, rm, copyFile, access } from 'node:fs/promises';
 import { pathToFileURL } from 'node:url';
 
 export const SSR_HEAD_MARKER = '<!-- VITE_EMBER_SSR_HEAD -->';
@@ -337,7 +337,67 @@ export function emberSsg(options: EmberSsgPluginOptions): Plugin {
           .split('/')
           .pop()!
           .replace(/\.[^.]+$/, '');
-        const ssrBundlePath = join(ssrOutDir, `${entryBasename}.mjs`);
+        const ssrBundleMjs = join(ssrOutDir, `${entryBasename}.mjs`);
+        const ssrBundleJs = join(ssrOutDir, `${entryBasename}.js`);
+
+        let ssrBundlePath: string;
+        try {
+          await access(ssrBundleMjs);
+          ssrBundlePath = ssrBundleMjs;
+        } catch {
+          ssrBundlePath = ssrBundleJs;
+        }
+
+        // Install browser globals before importing the SSR module,
+        // since many Ember ecosystem packages access window/document
+        // at module scope during evaluation.
+        const { Window } = await import('happy-dom');
+        const _ssrWindow = new Window({ url: 'http://localhost' });
+
+        const savedGlobals = new Map<string, PropertyDescriptor | undefined>();
+        const browserGlobals = [
+          'window', 'document', 'self', 'navigator', 'location', 'history',
+          'localStorage', 'sessionStorage',
+          'HTMLElement', 'Element', 'Node', 'Text', 'Comment',
+          'DocumentFragment', 'DOMParser', 'XMLSerializer',
+          'Event', 'CustomEvent', 'InputEvent', 'KeyboardEvent',
+          'MouseEvent', 'FocusEvent', 'PointerEvent',
+          'MutationObserver', 'IntersectionObserver', 'ResizeObserver',
+          'CSSStyleSheet', 'CSSStyleDeclaration', 'MediaQueryList',
+          'Blob', 'File', 'FileReader', 'FormData', 'DOMRect',
+          'Range', 'SVGElement',
+          'requestAnimationFrame', 'cancelAnimationFrame',
+        ];
+
+        // Install from Window instance properties first, then try named globals
+        for (const key of Object.getOwnPropertyNames(_ssrWindow)) {
+          if (key === 'constructor' || key === 'undefined') continue;
+          savedGlobals.set(key, Object.getOwnPropertyDescriptor(globalThis, key));
+          try {
+            Object.defineProperty(globalThis, key, {
+              value: (_ssrWindow as any)[key],
+              writable: true,
+              configurable: true,
+            });
+          } catch {
+            // ignore non-configurable
+          }
+        }
+
+        // Ensure named globals are available (some are getters on the prototype)
+        for (const name of browserGlobals) {
+          if ((globalThis as any)[name] !== undefined) continue;
+          savedGlobals.set(name, Object.getOwnPropertyDescriptor(globalThis, name));
+          try {
+            Object.defineProperty(globalThis, name, {
+              value: (_ssrWindow as any)[name],
+              writable: true,
+              configurable: true,
+            });
+          } catch {
+            // ignore
+          }
+        }
 
         // Use pathToFileURL + dynamic import to load the built bundle
         const ssrModule = await import(pathToFileURL(ssrBundlePath).href);
@@ -392,6 +452,18 @@ export function emberSsg(options: EmberSsgPluginOptions): Plugin {
               e instanceof Error ? e.message : e,
             );
             errorCount++;
+          }
+        }
+        // Restore original globals
+        for (const [name, desc] of savedGlobals) {
+          try {
+            if (desc) {
+              Object.defineProperty(globalThis, name, desc);
+            } else {
+              delete (globalThis as any)[name];
+            }
+          } catch {
+            // ignore
           }
         }
       } finally {
