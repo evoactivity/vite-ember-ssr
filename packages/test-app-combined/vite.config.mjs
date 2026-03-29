@@ -13,6 +13,7 @@ export default defineConfig({
     emberSsr(),
     emberSsg({
       routes: ['index', 'about', 'contact'],
+      shoebox: true,
     }),
   ],
 });

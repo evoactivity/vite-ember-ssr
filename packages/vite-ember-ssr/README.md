@@ -17,7 +17,7 @@ Both plugins can be used together in the same Vite config for a **combined SSR +
 - **HappyDOM Window** provides a full per-request browser-like environment. Ember runs directly in the Node.js process with globals swapped per request.
 - **`Application.visit(url)`** drives the entire render cycle server-side.
 - **Two client boot modes** — cleanup mode (default) removes SSR content when Ember boots; rehydrate mode lets Glimmer reuse the server-rendered DOM. See [Client Boot Modes](#client-boot-modes) below.
-- **Shoebox** — fetch responses captured during SSR/SSG are serialized into the HTML and replayed on the client to avoid duplicate API requests.
+- **Shoebox** (opt-in) — fetch responses captured during SSR/SSG can be serialized into the HTML and replayed on the client to avoid duplicate API requests. See [Shoebox](#shoebox).
 
 ## Requirements
 
@@ -105,9 +105,7 @@ export function createSsrApp() {
 ```ts
 import Application from './app.ts';
 import config from './config/environment.ts';
-import { installShoebox } from 'vite-ember-ssr/client';
 
-installShoebox();
 Application.create(config.APP);
 ```
 
@@ -133,22 +131,16 @@ import { cleanupSSRContent } from 'vite-ember-ssr/client';
 </template>
 ```
 
-#### 5. Build
+#### 6. Build
 
 ```sh
 vite build                      # client → dist/client
 vite build --ssr app/app-ssr.ts # server → dist/server
 ```
 
-#### 6. Server
+#### 7. Server
 
 Wire up `render()` in your server's catch-all route. See [examples/fastify.md](https://github.com/evoactivity/vite-ember-ssr/blob/main/examples/fastify.md) for a complete Fastify example with dev and production modes.
-
-Shoebox (fetch replay):
-
-- Pass `shoebox: true` to `render()` to capture `fetch` responses during SSR and serialize them into the rendered HTML. On the client call `installShoebox()` before boot to replay those responses and avoid duplicate requests.
-- Default: shoebox is opt-in. Use it when your app makes server-side fetch calls that the client would otherwise repeat on first load.
-- Caveats: embedding large API responses increases HTML size; do not serialize sensitive data into the shoebox.
 
 ### SSG (Static Site Generation)
 
@@ -208,8 +200,10 @@ Same as SSR — export a `createSsrApp` factory function. See the SSR section ab
 
 Same as SSR — see [Client Boot Modes](#client-boot-modes) below for the two options:
 
-- **Cleanup mode** (default): call `installShoebox()` in `entry.ts` and `{{cleanupSSRContent}}` in the application template.
-- **Rehydrate mode** (`rehydrate: true` in `emberSsg()`): call `installShoebox()` in `entry.ts`, boot with `autoboot: false` and `app.visit()` with `_renderMode: 'rehydrate'`. No `cleanupSSRContent` needed.
+- **Cleanup mode** (default): call `{{cleanupSSRContent}}` in the application template. Ember replaces the server-rendered DOM on boot.
+- **Rehydrate mode** (`rehydrate: true` in `emberSsg()`): boot with `autoboot: false` and `app.visit()` with `_renderMode: 'rehydrate'`. No `cleanupSSRContent` needed.
+
+If your routes make `fetch` calls during SSG that the client would repeat, see [Shoebox](#shoebox) to avoid duplicate requests.
 
 #### 5. Build
 
@@ -261,10 +255,10 @@ emberSsg({
   // SSR entry module (default: 'app/app-ssr.ts')
   ssrEntry: 'app/app-ssr.ts',
 
-  // Enable shoebox fetch replay (default: true)
+  // Enable shoebox fetch replay (default: false)
   // When true, fetch responses from model hooks are serialized into the HTML
-  // so the client doesn't re-fetch on boot
-  shoebox: true,
+  // so the client doesn't re-fetch on boot. See the Shoebox section below.
+  shoebox: false,
 
   // Enable Glimmer rehydration (default: false)
   // When true, prerendered HTML includes Glimmer serialization markers.
@@ -381,7 +375,7 @@ app.get('*', async (request, reply) => {
     url,
     template: ssrTemplate,
     createApp: createSsrApp,
-    shoebox: true,
+    shoebox: true, // opt-in: replay fetch responses on the client (see Shoebox section)
   });
 
   return reply.code(statusCode).type('text/html').send(html);
@@ -405,7 +399,6 @@ const { html } = await render({
   url,
   template,
   createApp: createSsrApp,
-  shoebox: true,
 });
 ```
 
@@ -414,9 +407,7 @@ const { html } = await render({
 ```ts
 import Application from './app.ts';
 import config from './config/environment.ts';
-import { installShoebox } from 'vite-ember-ssr/client';
 
-installShoebox();
 Application.create(config.APP);
 ```
 
@@ -444,12 +435,66 @@ const { html } = await render({
   url,
   template,
   createApp: createSsrApp,
-  shoebox: true,
   rehydrate: true,
 });
 ```
 
 **Client entry (`app/entry.ts`):**
+
+```ts
+import Application from './app.ts';
+import config from './config/environment.ts';
+
+const app = Application.create({ ...config.APP, autoboot: false });
+app.visit(window.location.pathname + window.location.search, {
+  _renderMode: 'rehydrate',
+});
+```
+
+No `cleanupSSRContent` is needed in rehydrate mode — Glimmer reuses the DOM as-is. No boundary markers are emitted by the server.
+
+> **Note:** `_renderMode` is a private Ember API (underscore prefix) that has existed since Ember 2.x for FastBoot rehydration. It is stable in practice but not part of the public API.
+
+### Shoebox
+
+The shoebox captures `fetch` responses made during SSR/SSG and serializes them into `<script>` tags in the rendered HTML. On the client, `installShoebox()` intercepts `fetch` and replays the cached responses — avoiding duplicate API requests on first load.
+
+**Shoebox is opt-in** (disabled by default). You only need it when your Ember routes make `fetch` calls during server rendering that the client would otherwise repeat.
+
+#### Enabling shoebox
+
+**Server side** — pass `shoebox: true` to `render()` or `renderEmberApp()`:
+
+```js
+const { html } = await render({
+  url,
+  template,
+  createApp: createSsrApp,
+  shoebox: true,
+});
+```
+
+For SSG, pass `shoebox: true` to `emberSsg()`:
+
+```js
+emberSsg({
+  routes: ['index', 'about', 'pokemon'],
+  shoebox: true,
+});
+```
+
+**Client side** — call `installShoebox()` in `entry.ts` **before** Ember boots:
+
+```ts
+import Application from './app.ts';
+import config from './config/environment.ts';
+import { installShoebox } from 'vite-ember-ssr/client';
+
+installShoebox();
+Application.create(config.APP);
+```
+
+For rehydrate mode:
 
 ```ts
 import Application from './app.ts';
@@ -464,9 +509,27 @@ app.visit(window.location.pathname + window.location.search, {
 });
 ```
 
-No `cleanupSSRContent` is needed in rehydrate mode — Glimmer reuses the DOM as-is. No boundary markers are emitted by the server.
+#### How it works
 
-> **Note:** `_renderMode` is a private Ember API (underscore prefix) that has existed since Ember 2.x for FastBoot rehydration. It is stable in practice but not part of the public API.
+1. During SSR/SSG, the server intercepts all `fetch()` calls and records the responses.
+2. The responses are serialized as `<script type="application/json" class="shoebox">` tags in the HTML.
+3. On the client, `installShoebox()` reads those `<script>` tags, wraps `window.fetch`, and serves cached responses for matching URLs.
+4. Once all cached entries have been consumed, the original `fetch` is automatically restored.
+
+#### When to use it
+
+- Routes that fetch data in `model()` hooks (e.g., API calls to load a page).
+- Any SSR/SSG scenario where the client would re-fetch the same data immediately on boot.
+
+#### When to skip it
+
+- Static pages with no server-side data fetching.
+- Apps where the client intentionally re-fetches for freshness.
+
+#### Caveats
+
+- Embedding large API responses increases HTML payload size.
+- Never serialize sensitive or user-specific data into the shoebox — the HTML is cached/served to all users.
 
 ## API
 
@@ -505,7 +568,7 @@ Options:
 emberSsg({
   routes: ['index', 'about'], // required: routes to prerender
   ssrEntry: 'app/app-ssr.ts', // default: SSR entry module path
-  shoebox: true, // default: serialize fetch responses into HTML
+  shoebox: false, // default: serialize fetch responses into HTML
   rehydrate: false, // default: use Glimmer rehydration instead of cleanup mode
   outDir: 'dist', // default: output directory (ignored when combined with emberSsr)
   additionalNoExternal: [], // extend built-in ssr.noExternal patterns

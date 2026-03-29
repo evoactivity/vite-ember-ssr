@@ -155,7 +155,13 @@ export interface EmberSsgPluginOptions {
 
   /**
    * Enable shoebox (fetch replay) for prerendered pages.
-   * @default true
+   *
+   * When true, fetch responses from route model hooks are captured during
+   * prerendering and serialized into the HTML. The client calls
+   * `installShoebox()` before boot to replay those responses and avoid
+   * duplicate API requests.
+   *
+   * @default false
    */
   shoebox?: boolean;
 
@@ -220,7 +226,7 @@ export function emberSsg(options: EmberSsgPluginOptions): Plugin {
   const {
     routes,
     ssrEntry = 'app/app-ssr.ts',
-    shoebox = true,
+    shoebox = false,
     rehydrate = false,
     additionalNoExternal = [],
   } = options;

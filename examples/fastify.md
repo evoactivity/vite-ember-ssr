@@ -68,7 +68,7 @@ async function setupDev(app) {
         url: request.url,
         template,
         createApp: createSsrApp,
-        shoebox: true,
+        shoebox: true, // opt-in: replay fetch responses on the client
       });
 
       if (error) app.log.error(error, 'SSR rendering error');
@@ -109,7 +109,7 @@ async function setupProd(app) {
         url: request.url,
         template,
         createApp: createSsrApp,
-        shoebox: true,
+        shoebox: true, // opt-in: replay fetch responses on the client
       });
 
       if (error) app.log.error(error, 'SSR rendering error');
@@ -150,7 +150,7 @@ node server.js
 
 - **`process.chdir(appRoot)`** is required in dev mode — `@embroider/vite` uses `process.cwd()` to locate the Ember app.
 - **`index: false`** on `@fastify/static` prevents it from serving `index.html` for directory requests, which would bypass the SSR handler.
-- **`shoebox: true`** captures `fetch` responses during SSR and serializes them into the HTML. The client's `installShoebox()` replays them to avoid duplicate API requests.
+- **`shoebox: true`** is opt-in — it captures `fetch` responses during SSR and serializes them into the HTML. The client's `installShoebox()` replays them to avoid duplicate API requests. Only needed when your routes fetch data during SSR. See the [Shoebox section](../packages/vite-ember-ssr/README.md#shoebox) in the main README.
 - **Always `return reply`** from async Fastify handlers to prevent stream lifecycle issues.
 
 ## Rehydration
@@ -162,7 +162,7 @@ const { html, statusCode, error } = await render({
   url: request.url,
   template,
   createApp: createSsrApp,
-  shoebox: true,
+  shoebox: true, // opt-in: only needed if routes fetch data during SSR
   rehydrate: true,
 });
 ```

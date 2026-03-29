@@ -103,7 +103,7 @@ async function start() {
         url,
         template: ssrTemplate,
         createApp: createSsrApp,
-        shoebox: true,
+        shoebox: true, // opt-in: replay fetch responses on the client
       });
 
       if (error) app.log.error(error, 'SSR rendering error');
@@ -164,14 +164,14 @@ node server.js
 
 - **`_template.html`** — When `emberSsg` detects `emberSsr` in the same config, it preserves the original `index.html` as `_template.html` before overwriting it with prerendered content. Your server reads this file for dynamic SSR.
 - **`index: false`** on `@fastify/static` prevents it from serving `index.html` for directory requests, which would bypass the catch-all handler.
-- **`shoebox: true`** captures `fetch` responses during dynamic SSR and serializes them into the HTML. The client's `installShoebox()` replays them to avoid duplicate API requests.
+- **`shoebox: true`** is opt-in — it captures `fetch` responses during dynamic SSR and serializes them into the HTML. The client's `installShoebox()` replays them to avoid duplicate API requests. Only needed when your routes fetch data during SSR. See the [Shoebox section](../packages/vite-ember-ssr/README.md#shoebox) in the main README.
 - **Always `return reply`** from async Fastify handlers to prevent stream lifecycle issues.
 
 ## Rehydration
 
 Both the SSG prerender and the dynamic SSR fallback support rehydrate mode independently.
 
-**SSG prerender:** pass `rehydrate: true` to `emberSsg()` in your Vite config. The prerendered HTML files will include Glimmer serialization markers instead of boundary markers.
+**SSG prerender:** pass `rehydrate: true` to `emberSsg()` in your Vite config. The prerendered HTML files will include Glimmer serialization markers instead of boundary markers. Add `shoebox: true` if routes fetch data during prerendering.
 
 ```js
 // vite.config.mjs
@@ -188,7 +188,7 @@ const { html, statusCode, error } = await render({
   url,
   template: ssrTemplate,
   createApp: createSsrApp,
-  shoebox: true,
+  shoebox: true, // opt-in: only needed if routes fetch data during SSR
   rehydrate: true,
 });
 ```
