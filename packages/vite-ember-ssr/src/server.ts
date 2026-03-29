@@ -162,6 +162,17 @@ const BROWSER_GLOBALS = [
   'requestAnimationFrame',
   'cancelAnimationFrame',
   'self',
+  'localStorage',
+  'sessionStorage',
+  'InputEvent',
+  'KeyboardEvent',
+  'MouseEvent',
+  'FocusEvent',
+  'PointerEvent',
+  'IntersectionObserver',
+  'ResizeObserver',
+  'CSSStyleSheet',
+  'MediaQueryList',
 ] as const;
 
 /**
