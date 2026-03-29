@@ -60,14 +60,14 @@ async function setupDev(app) {
       let template = await readFile(resolve(appRoot, 'index.html'), 'utf-8');
       template = await vite.transformIndexHtml(request.url, template);
 
-      const { createSsrApp } = await vite.ssrLoadModule(
+      const mod = await vite.ssrLoadModule(
         resolve(appRoot, 'app/app-ssr.ts'),
       );
 
       const { html, statusCode, error } = await render({
         url: request.url,
         template,
-        createApp: createSsrApp,
+        createApp: async () => mod.createSsrApp(),
         shoebox: true, // opt-in: replay fetch responses on the client
       });
 
@@ -95,7 +95,7 @@ async function setupProd(app) {
     index: false, // Don't serve index.html for directory requests
   });
 
-  const { createSsrApp } = await import(resolve(appDist, 'server/app-ssr.mjs'));
+  const ssrBundlePath = resolve(appDist, 'server/app-ssr.mjs');
   const template = await readFile(
     resolve(appDist, 'client/index.html'),
     'utf-8',
@@ -108,7 +108,10 @@ async function setupProd(app) {
       const { html, statusCode, error } = await render({
         url: request.url,
         template,
-        createApp: createSsrApp,
+        createApp: async () => {
+          const { createSsrApp } = await import(ssrBundlePath);
+          return createSsrApp();
+        },
         shoebox: true, // opt-in: replay fetch responses on the client
       });
 
@@ -161,7 +164,10 @@ By default, SSR uses **cleanup mode** — the server wraps rendered content in b
 const { html, statusCode, error } = await render({
   url: request.url,
   template,
-  createApp: createSsrApp,
+  createApp: async () => {
+    const { createSsrApp } = await import('./dist/server/app-ssr.mjs');
+    return createSsrApp();
+  },
   shoebox: true, // opt-in: only needed if routes fetch data during SSR
   rehydrate: true,
 });

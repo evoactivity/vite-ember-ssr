@@ -68,8 +68,8 @@ async function start() {
     index: false, // Don't serve index.html for directory requests
   });
 
-  // Load the pre-built SSR bundle
-  const { createSsrApp } = await import(resolve(serverDir, 'app-ssr.mjs'));
+  // Load the SSR bundle path for dynamic imports inside render()
+  const ssrBundlePath = resolve(serverDir, 'app-ssr.mjs');
 
   // Read the SSR template preserved by emberSsg during the client build.
   // When both plugins are used together, emberSsg copies index.html to
@@ -102,7 +102,10 @@ async function start() {
       const { html, statusCode, error } = await render({
         url,
         template: ssrTemplate,
-        createApp: createSsrApp,
+        createApp: async () => {
+          const { createSsrApp } = await import(ssrBundlePath);
+          return createSsrApp();
+        },
         shoebox: true, // opt-in: replay fetch responses on the client
       });
 
@@ -187,7 +190,10 @@ emberSsg({
 const { html, statusCode, error } = await render({
   url,
   template: ssrTemplate,
-  createApp: createSsrApp,
+  createApp: async () => {
+    const { createSsrApp } = await import('./dist/server/app-ssr.mjs');
+    return createSsrApp();
+  },
   shoebox: true, // opt-in: only needed if routes fetch data during SSR
   rehydrate: true,
 });

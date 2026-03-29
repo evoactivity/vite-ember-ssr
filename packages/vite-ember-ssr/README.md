@@ -100,6 +100,8 @@ export function createSsrApp() {
 }
 ```
 
+> **Note:** The `createSsrApp` function here is a simple factory. The `createApp` option passed to `render()` must be an **async function** that imports this module and calls the factory — see the server examples below.
+
 #### 4. Client entry (`app/entry.ts`)
 
 ```ts
@@ -140,7 +142,23 @@ vite build --ssr app/app-ssr.ts # server → dist/server
 
 #### 7. Server
 
-Wire up `render()` in your server's catch-all route. See [examples/fastify.md](https://github.com/evoactivity/vite-ember-ssr/blob/main/examples/fastify.md) for a complete Fastify example with dev and production modes.
+Wire up `render()` in your server's catch-all route. The `createApp` option must be an **async factory function** — it is called inside a HappyDOM browser-globals context for each render, so dynamic `import()` of the SSR bundle must happen inside it:
+
+```js
+import { render } from 'vite-ember-ssr/server';
+
+// Production example:
+const { html, statusCode } = await render({
+  url: request.url,
+  template,
+  createApp: async () => {
+    const { createSsrApp } = await import('./dist/server/app-ssr.mjs');
+    return createSsrApp();
+  },
+});
+```
+
+See [examples/fastify.md](https://github.com/evoactivity/vite-ember-ssr/blob/main/examples/fastify.md) for a complete Fastify example with dev and production modes.
 
 ### SSG (Static Site Generation)
 
@@ -374,7 +392,10 @@ app.get('*', async (request, reply) => {
   const { html, statusCode } = await render({
     url,
     template: ssrTemplate,
-    createApp: createSsrApp,
+    createApp: async () => {
+      const { createSsrApp } = await import('./dist/server/app-ssr.mjs');
+      return createSsrApp();
+    },
     shoebox: true, // opt-in: replay fetch responses on the client (see Shoebox section)
   });
 
@@ -398,7 +419,10 @@ The server wraps rendered content in boundary markers. On boot, `cleanupSSRConte
 const { html } = await render({
   url,
   template,
-  createApp: createSsrApp,
+  createApp: async () => {
+    const { createSsrApp } = await import('./dist/server/app-ssr.mjs');
+    return createSsrApp();
+  },
 });
 ```
 
@@ -434,7 +458,10 @@ The server renders with `_renderMode: 'serialize'`, which annotates the DOM with
 const { html } = await render({
   url,
   template,
-  createApp: createSsrApp,
+  createApp: async () => {
+    const { createSsrApp } = await import('./dist/server/app-ssr.mjs');
+    return createSsrApp();
+  },
   rehydrate: true,
 });
 ```
@@ -469,7 +496,10 @@ The shoebox captures `fetch` responses made during SSR/SSG and serializes them i
 const { html } = await render({
   url,
   template,
-  createApp: createSsrApp,
+  createApp: async () => {
+    const { createSsrApp } = await import('./dist/server/app-ssr.mjs');
+    return createSsrApp();
+  },
   shoebox: true,
 });
 ```
@@ -531,6 +561,38 @@ app.visit(window.location.pathname + window.location.search, {
 - Embedding large API responses increases HTML payload size.
 - Never serialize sensitive or user-specific data into the shoebox — the HTML is cached/served to all users.
 
+### Lazy Routes (`@embroider/router`)
+
+Both SSR and SSG modes support `@embroider/router`'s lazy-loaded route bundles (`window._embroiderRouteBundles_`). No additional configuration is needed — the library detects and handles lazy bundles automatically.
+
+#### Requirements
+
+1. Your app uses `@embroider/router` with route splitting enabled.
+2. The `@embroider/core` babel plugin must have `active: true` in your babel config:
+
+```js
+// babel.config.cjs
+module.exports = {
+  plugins: [
+    ['@embroider/core/babel-plugin', { active: true }],
+    // ...
+  ],
+};
+```
+
+3. The `createApp` function passed to `render()` must be **async** and dynamically import the SSR bundle (this is the standard pattern for all apps, not just lazy routes):
+
+```js
+createApp: async () => {
+  const { createSsrApp } = await import('./dist/server/app-ssr.mjs');
+  return createSsrApp();
+},
+```
+
+#### How it works
+
+When `@embroider/router` is active, it registers route bundles on `window._embroiderRouteBundles_` at module load time. The library captures these bundles after the first render and re-applies them to subsequent HappyDOM windows, ensuring lazy routes resolve correctly across multiple SSR/SSG renders.
+
 ## API
 
 ### `vite-ember-ssr/vite-plugin`
@@ -581,11 +643,11 @@ emberSsg({
 import { render } from 'vite-ember-ssr/server';
 ```
 
-- **`render({ url, template, createApp, shoebox?, rehydrate? })`** — render an Ember app and assemble the final HTML. Returns `{ html, statusCode, error }`.
+- **`render({ url, template, createApp, shoebox?, rehydrate? })`** — render an Ember app and assemble the final HTML. `createApp` must be an **async function** (`() => Promise<EmberApplication>`) — it is called inside a HappyDOM browser-globals context, so the SSR bundle should be dynamically imported within it. Returns `{ html, statusCode, error }`.
 
 Lower-level functions are also exported for advanced use:
 
-- **`renderEmberApp({ url, createApp, shoebox?, rehydrate? })`** — render only, returns `{ head, body, statusCode, error }`.
+- **`renderEmberApp({ url, createApp, shoebox?, rehydrate? })`** — render only, returns `{ head, body, statusCode, error }`. Same async `createApp` requirement.
 - **`assembleHTML(template, renderResult)`** — replace SSR markers in the HTML template.
 
 ### `vite-ember-ssr/client`
@@ -606,15 +668,17 @@ import {
 
 ## Monorepo development
 
-This repo contains five packages:
+This repo contains seven packages:
 
-| Package                      | Description                |
-| ---------------------------- | -------------------------- |
-| `packages/vite-ember-ssr`    | Core library + test suites |
-| `packages/test-app`          | Ember test app (SSR)       |
-| `packages/test-app-ssg`      | Ember test app (SSG)       |
-| `packages/test-app-combined` | Ember test app (SSR + SSG) |
-| `packages/test-server`       | Fastify SSR server         |
+| Package                      | Description                         |
+| ---------------------------- | ----------------------------------- |
+| `packages/vite-ember-ssr`    | Core library + test suites          |
+| `packages/test-app`          | Ember test app (SSR)                |
+| `packages/test-app-ssg`      | Ember test app (SSG)                |
+| `packages/test-app-combined` | Ember test app (SSR + SSG)          |
+| `packages/test-app-lazy-ssr` | Ember test app (SSR + lazy routes)  |
+| `packages/test-app-lazy-ssg` | Ember test app (SSG + lazy routes)  |
+| `packages/test-server`       | Fastify SSR server                  |
 
 ```sh
 pnpm install
