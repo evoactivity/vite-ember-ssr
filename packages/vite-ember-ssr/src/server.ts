@@ -211,7 +211,7 @@ async function withBrowserGlobals<T>(
   // Install globals
   for (const name of BROWSER_GLOBALS) {
     saved.set(name, Object.getOwnPropertyDescriptor(globalThis, name));
-    const value = window[name];
+    const value = (window as unknown as Record<string, unknown>)[name];
     try {
       Object.defineProperty(globalThis, name, {
         value,
