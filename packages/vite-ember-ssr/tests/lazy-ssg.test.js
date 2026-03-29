@@ -4,7 +4,7 @@ import { readFile, access } from 'node:fs/promises';
 import { fileURLToPath } from 'node:url';
 
 const __dirname = fileURLToPath(new URL('.', import.meta.url));
-const lazyDist = resolve(__dirname, '../../test-app-lazy/dist');
+const lazyDist = resolve(__dirname, '../../test-app-lazy-ssg/dist');
 
 /**
  * Helper: read a prerendered HTML file from the lazy SSG dist output.

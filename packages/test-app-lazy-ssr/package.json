@@ -1,8 +1,8 @@
 {
-  "name": "test-app-lazy",
+  "name": "test-app-lazy-ssr",
   "version": "0.0.0",
   "private": true,
-  "description": "Test Ember app for vite-ember-ssr SSG with lazy-loaded routes (@embroider/router)",
+  "description": "Test Ember app for vite-ember-ssr SSR with lazy-loaded routes (@embroider/router)",
   "license": "MIT",
   "exports": {
     "./*": "./app/*"
@@ -10,6 +10,9 @@
   "scripts": {
     "dev": "vite",
     "build": "vite build",
+    "build:client": "vite build",
+    "build:server": "vite build --ssr app/app-ssr.ts",
+    "build:all": "pnpm build:client && pnpm build:server",
     "lint:types": "tsc --noEmit"
   },
   "devDependencies": {
