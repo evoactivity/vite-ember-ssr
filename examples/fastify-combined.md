@@ -169,9 +169,19 @@ node server.js
 
 ## Rehydration
 
-The `rehydrate` option can be passed to `render()` for the dynamic SSR fallback. Note that prerendered (SSG) routes serve static files directly, so rehydration only applies to the dynamic SSR path.
+Both the SSG prerender and the dynamic SSR fallback support rehydrate mode independently.
 
-To enable rehydrate mode for dynamic routes:
+**SSG prerender:** pass `rehydrate: true` to `emberSsg()` in your Vite config. The prerendered HTML files will include Glimmer serialization markers instead of boundary markers.
+
+```js
+// vite.config.mjs
+emberSsg({
+  routes: ['index', 'about', 'contact'],
+  rehydrate: true,
+}),
+```
+
+**Dynamic SSR fallback:** pass `rehydrate: true` to `render()` in your server:
 
 ```js
 const { html, statusCode, error } = await render({
@@ -183,7 +193,7 @@ const { html, statusCode, error } = await render({
 });
 ```
 
-When using combined mode with rehydrate on the SSR fallback, the client needs to handle both cases — prerendered pages use cleanup mode (`cleanupSSRContent` in the application template), while dynamically rendered pages can use rehydrate mode. See the main [README](../packages/vite-ember-ssr/README.md#client-boot-modes) for full details on both client boot modes.
+You can use the same mode for both (simplest), or mix them — e.g., rehydrate for prerendered pages and cleanup for dynamic SSR, or vice versa. If both use the same mode, the client entry is straightforward. If they differ, the client needs to detect which mode was used (e.g., check for boundary markers with `isSSRRendered()`). See the main [README](../packages/vite-ember-ssr/README.md#client-boot-modes) for full details on both client boot modes.
 
 ## Build output reference
 
