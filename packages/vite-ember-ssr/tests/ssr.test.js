@@ -104,6 +104,21 @@ describe('SSR HTML structure', () => {
     expect(html).toContain('id="ssr-body-end"');
   });
 
+  it('omits SSR boundary markers when rehydrate is true', async () => {
+    const { html } = await renderRoute('/', { rehydrate: true });
+
+    expect(html).not.toContain('id="ssr-body-start"');
+    expect(html).not.toContain('id="ssr-body-end"');
+  });
+
+  it('includes Glimmer serialization comments when rehydrate is true', async () => {
+    const { rendered } = await renderRoute('/', { rehydrate: true });
+
+    // Glimmer's SerializeBuilder writes block boundary comments like <!--%+b:0%-->
+    expect(rendered.body).toContain('<!--%+b:');
+    expect(rendered.body).toContain('<!--%-b:');
+  });
+
   it('includes the client JS bundle', async () => {
     const { html } = await renderRoute('/');
 

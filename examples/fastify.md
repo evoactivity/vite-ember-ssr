@@ -152,3 +152,19 @@ node server.js
 - **`index: false`** on `@fastify/static` prevents it from serving `index.html` for directory requests, which would bypass the SSR handler.
 - **`shoebox: true`** captures `fetch` responses during SSR and serializes them into the HTML. The client's `installShoebox()` replays them to avoid duplicate API requests.
 - **Always `return reply`** from async Fastify handlers to prevent stream lifecycle issues.
+
+## Rehydration
+
+By default, SSR uses **cleanup mode** — the server wraps rendered content in boundary markers, and `cleanupSSRContent()` (called from the application template) removes the SSR content when Ember boots. To use **rehydrate mode** instead, pass `rehydrate: true` to `render()`:
+
+```js
+const { html, statusCode, error } = await render({
+  url: request.url,
+  template,
+  createApp: createSsrApp,
+  shoebox: true,
+  rehydrate: true,
+});
+```
+
+In rehydrate mode, the server renders with `_renderMode: 'serialize'`, annotating the DOM with Glimmer markers. The client must boot with `autoboot: false` and call `app.visit(url, { _renderMode: 'rehydrate' })`. No `cleanupSSRContent` is needed. See the main [README](../packages/vite-ember-ssr/README.md#client-boot-modes) for full client-side setup.

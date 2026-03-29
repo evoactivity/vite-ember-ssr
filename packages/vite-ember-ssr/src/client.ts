@@ -155,16 +155,31 @@ export function cleanupShoebox(): void {
 // ─── SSR Content Cleanup ─────────────────────────────────────────────
 
 /**
- * Removes the SSR-rendered content from the DOM before the client
- * Ember app boots. This prevents the "double render" where both the
- * server-rendered HTML and the client-rendered HTML are visible.
+ * Removes the SSR-rendered content from the DOM so the client Ember
+ * app can render into a clean `<body>`. This prevents the "double
+ * render" where both server-rendered HTML and client-rendered HTML
+ * are visible simultaneously.
  *
  * Removes everything between (and including) the SSR boundary markers:
  *   <script type="x/boundary" id="ssr-body-start">
  *   ...server rendered content...
  *   <script type="x/boundary" id="ssr-body-end">
  *
- * Call this in your client entry point BEFORE creating the Ember app.
+ * **Call this from your application template** rather than from
+ * `entry.ts` — this ensures removal happens at the moment Ember
+ * renders, avoiding a flash of no content:
+ *
+ * ```gts
+ * import { cleanupSSRContent } from 'vite-ember-ssr/client';
+ *
+ * <template>
+ *   {{cleanupSSRContent}}
+ *   {{outlet}}
+ * </template>
+ * ```
+ *
+ * Only used in cleanup mode (default). Not needed when using
+ * `rehydrate: true` — in that mode Glimmer reuses the existing DOM.
  */
 export function cleanupSSRContent(): void {
   const start = document.getElementById('ssr-body-start');

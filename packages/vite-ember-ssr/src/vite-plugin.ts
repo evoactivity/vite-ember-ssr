@@ -166,6 +166,22 @@ export interface EmberSsgPluginOptions {
   outDir?: string;
 
   /**
+   * Enable Glimmer rehydration for prerendered pages.
+   *
+   * When `true`, the server renders with `_renderMode: 'serialize'`,
+   * annotating the DOM with Glimmer markers. The client boots with
+   * `app.visit(url, { _renderMode: 'rehydrate' })` to reuse the
+   * static DOM instead of replacing it.
+   *
+   * When `false` (default), boundary markers are emitted and the
+   * client uses `cleanupSSRContent()` in the application template
+   * to remove the SSR content before Ember renders fresh.
+   *
+   * @default false
+   */
+  rehydrate?: boolean;
+
+  /**
    * Additional packages to add to `ssr.noExternal` beyond the
    * built-in Ember ecosystem patterns.
    */
@@ -205,6 +221,7 @@ export function emberSsg(options: EmberSsgPluginOptions): Plugin {
     routes,
     ssrEntry = 'app/app-ssr.ts',
     shoebox = true,
+    rehydrate = false,
     additionalNoExternal = [],
   } = options;
 
@@ -360,6 +377,7 @@ export function emberSsg(options: EmberSsgPluginOptions): Plugin {
               template,
               createApp: createSsrApp,
               shoebox,
+              rehydrate,
             });
 
             if (result.error) {

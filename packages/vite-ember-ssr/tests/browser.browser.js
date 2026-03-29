@@ -42,11 +42,11 @@ test.describe('client Ember app boots and takes over', () => {
   test('Ember boots and renders the page', async ({ page }) => {
     await page.goto('/');
 
-    // Wait for Ember to boot — the ember-view class on body or
-    // the disappearance of SSR boundary markers indicates Ember took over
+    // Wait for Ember to boot — the .ember-application class on body
+    // indicates Ember has finished booting and taken over the DOM
     await page.waitForFunction(
       () => {
-        return !document.getElementById('ssr-body-start');
+        return document.body.classList.contains('ember-application');
       },
       { timeout: 15_000 },
     );
@@ -60,23 +60,37 @@ test.describe('client Ember app boots and takes over', () => {
     await expect(page.locator('[data-component="item-list"]')).toBeVisible();
   });
 
-  test('SSR boundary markers are removed after client boot', async ({
-    page,
-  }) => {
+  test('no SSR boundary markers in rehydrate mode', async ({ page }) => {
+    // In rehydrate mode, boundary markers are never emitted by the server.
+    // This is necessary because extra DOM nodes would break Glimmer's
+    // RehydrateTree which expects the first child to be <!--%+b:0%-->.
     await page.goto('/');
 
-    await page.waitForFunction(
-      () => {
-        return !document.getElementById('ssr-body-start');
-      },
-      { timeout: 15_000 },
-    );
-
-    // Boundary markers should be gone
+    // Boundary markers should never be present in rehydrate mode
     const startMarker = await page.$('#ssr-body-start');
     const endMarker = await page.$('#ssr-body-end');
     expect(startMarker).toBeNull();
     expect(endMarker).toBeNull();
+  });
+
+  test('Ember rehydrates and becomes interactive', async ({ page }) => {
+    await page.goto('/');
+
+    await page.waitForFunction(
+      () => {
+        return document.body.classList.contains('ember-application');
+      },
+      { timeout: 15_000 },
+    );
+
+    // Content should be present (rehydrated from SSR)
+    await expect(page.locator('[data-route="index"]')).toBeVisible();
+    await expect(page.locator('h1')).toHaveText('Welcome to vite-ember-ssr');
+
+    // Interactive elements should work (proves Ember took over)
+    const incrementBtn = page.locator('[data-action="increment"]');
+    await incrementBtn.click();
+    await expect(page.locator('[data-count="1"]')).toBeVisible();
   });
 });
 
@@ -91,7 +105,7 @@ test.describe('client-side navigation via Ember router', () => {
     // Wait for Ember to boot
     await page.waitForFunction(
       () => {
-        return !document.getElementById('ssr-body-start');
+        return document.body.classList.contains('ember-application');
       },
       { timeout: 15_000 },
     );
@@ -135,7 +149,7 @@ test.describe('counter component interactivity', () => {
     // Wait for Ember to boot
     await page.waitForFunction(
       () => {
-        return !document.getElementById('ssr-body-start');
+        return document.body.classList.contains('ember-application');
       },
       { timeout: 15_000 },
     );
@@ -179,7 +193,7 @@ test.describe('counter component interactivity', () => {
     // Wait for Ember to boot
     await page.waitForFunction(
       () => {
-        return !document.getElementById('ssr-body-start');
+        return document.body.classList.contains('ember-application');
       },
       { timeout: 15_000 },
     );
@@ -217,7 +231,7 @@ test.describe('item list filtering', () => {
     // Wait for Ember to boot
     await page.waitForFunction(
       () => {
-        return !document.getElementById('ssr-body-start');
+        return document.body.classList.contains('ember-application');
       },
       { timeout: 15_000 },
     );
@@ -310,7 +324,7 @@ test.describe('pokemon-fetch routes with fetched data', () => {
     // Wait for Ember to boot
     await page.waitForFunction(
       () => {
-        return !document.getElementById('ssr-body-start');
+        return document.body.classList.contains('ember-application');
       },
       { timeout: 15_000 },
     );
@@ -331,7 +345,7 @@ test.describe('pokemon-fetch routes with fetched data', () => {
     // Wait for Ember to boot
     await page.waitForFunction(
       () => {
-        return !document.getElementById('ssr-body-start');
+        return document.body.classList.contains('ember-application');
       },
       { timeout: 15_000 },
     );
@@ -359,7 +373,7 @@ test.describe('pokemon-fetch routes with fetched data', () => {
     // Wait for Ember to boot
     await page.waitForFunction(
       () => {
-        return !document.getElementById('ssr-body-start');
+        return document.body.classList.contains('ember-application');
       },
       { timeout: 15_000 },
     );
@@ -491,7 +505,7 @@ test.describe('shoebox prevents double-fetching', () => {
     // Wait for client Ember to boot
     await page.waitForFunction(
       () => {
-        return !document.getElementById('ssr-body-start');
+        return document.body.classList.contains('ember-application');
       },
       { timeout: 15_000 },
     );
@@ -517,7 +531,7 @@ test.describe('shoebox prevents double-fetching', () => {
     // Wait for Ember to boot and content to be visible
     await page.waitForFunction(
       () => {
-        return !document.getElementById('ssr-body-start');
+        return document.body.classList.contains('ember-application');
       },
       { timeout: 15_000 },
     );
@@ -546,7 +560,7 @@ test.describe('shoebox prevents double-fetching', () => {
     // Wait for Ember to boot
     await page.waitForFunction(
       () => {
-        return !document.getElementById('ssr-body-start');
+        return document.body.classList.contains('ember-application');
       },
       { timeout: 15_000 },
     );
@@ -574,7 +588,7 @@ test.describe('shoebox prevents double-fetching', () => {
     // Wait for Ember to boot
     await page.waitForFunction(
       () => {
-        return !document.getElementById('ssr-body-start');
+        return document.body.classList.contains('ember-application');
       },
       { timeout: 15_000 },
     );
@@ -603,7 +617,7 @@ test.describe('shoebox prevents double-fetching', () => {
     await page.goto('/pokemon-fetch');
     await page.waitForFunction(
       () => {
-        return !document.getElementById('ssr-body-start');
+        return document.body.classList.contains('ember-application');
       },
       { timeout: 15_000 },
     );
@@ -638,7 +652,7 @@ test.describe('pokemon-warp-drive routes with WarpDrive store', () => {
     // Wait for Ember to boot and data to load
     await page.waitForFunction(
       () => {
-        return !document.getElementById('ssr-body-start');
+        return document.body.classList.contains('ember-application');
       },
       { timeout: 15_000 },
     );
@@ -660,7 +674,7 @@ test.describe('pokemon-warp-drive routes with WarpDrive store', () => {
     // Wait for Ember to boot
     await page.waitForFunction(
       () => {
-        return !document.getElementById('ssr-body-start');
+        return document.body.classList.contains('ember-application');
       },
       { timeout: 15_000 },
     );
@@ -683,7 +697,7 @@ test.describe('pokemon-warp-drive routes with WarpDrive store', () => {
     // Wait for Ember to boot and list to load
     await page.waitForFunction(
       () => {
-        return !document.getElementById('ssr-body-start');
+        return document.body.classList.contains('ember-application');
       },
       { timeout: 15_000 },
     );
@@ -709,7 +723,7 @@ test.describe('pokemon-warp-drive routes with WarpDrive store', () => {
     // Wait for Ember to boot
     await page.waitForFunction(
       () => {
-        return !document.getElementById('ssr-body-start');
+        return document.body.classList.contains('ember-application');
       },
       { timeout: 15_000 },
     );
@@ -736,7 +750,7 @@ test.describe('pokemon-warp-drive routes with WarpDrive store', () => {
     // Wait for Ember to boot
     await page.waitForFunction(
       () => {
-        return !document.getElementById('ssr-body-start');
+        return document.body.classList.contains('ember-application');
       },
       { timeout: 15_000 },
     );

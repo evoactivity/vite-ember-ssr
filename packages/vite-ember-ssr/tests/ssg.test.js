@@ -76,11 +76,20 @@ describe('SSG HTML structure', () => {
     }
   });
 
-  it('includes SSR boundary markers in all pages', async () => {
+  it('omits SSR boundary markers in rehydrate mode', async () => {
     for (const route of ['index', 'about', 'contact', 'pokemon-fetch']) {
       const html = await readSsgHtml(route);
-      expect(html).toContain('id="ssr-body-start"');
-      expect(html).toContain('id="ssr-body-end"');
+      expect(html).not.toContain('id="ssr-body-start"');
+      expect(html).not.toContain('id="ssr-body-end"');
+    }
+  });
+
+  it('includes Glimmer serialization comments in rehydrate mode', async () => {
+    for (const route of ['index', 'about', 'contact', 'pokemon-fetch']) {
+      const html = await readSsgHtml(route);
+      // Glimmer's SerializeBuilder writes block boundary comments like <!--%+b:0%-->
+      expect(html).toContain('<!--%+b:');
+      expect(html).toContain('<!--%-b:');
     }
   });
 
@@ -155,7 +164,9 @@ describe('SSG index route', () => {
     expect(html).toContain('data-component="item-list"');
     expect(html).toContain('data-filter="all"');
     expect(html).toContain('data-item-count="5"');
-    expect(html).toContain('Showing 5 of 5 items');
+    // In rehydrate mode, Glimmer serialization comments wrap dynamic text nodes,
+    // so we check the values are present rather than exact text
+    expect(html).toMatch(/Showing\s.*5.*of\s.*5.*items/);
 
     expect(html).toContain('data-item-id="1"');
     expect(html).toContain('Vite');

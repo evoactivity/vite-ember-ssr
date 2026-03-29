@@ -72,19 +72,17 @@ test.describe('SSG static content is visible before client JS boots', () => {
 
 // ─── Client-Side Ember Boot on SSG Pages ─────────────────────────────
 
-test.describe('client Ember app boots on SSG pages', () => {
+test.describe('client Ember app boots on SSG pages (rehydrate mode)', () => {
   test('Ember boots and takes over the index page', async ({ page }) => {
     await page.goto('/');
 
-    // Wait for Ember to boot — SSR boundary markers are removed
+    // Wait for Ember to boot — detected via .ember-application class on body
     await page.waitForFunction(
-      () => {
-        return !document.getElementById('ssr-body-start');
-      },
+      () => document.body.classList.contains('ember-application'),
       { timeout: 15_000 },
     );
 
-    // Content should still be present after client takeover
+    // Content should still be present after rehydration
     await expect(page.locator('[data-route="index"]')).toBeVisible();
     await expect(page.locator('h1')).toHaveText('Welcome to vite-ember-ssr');
     await expect(
@@ -93,31 +91,42 @@ test.describe('client Ember app boots on SSG pages', () => {
     await expect(page.locator('[data-component="item-list"]')).toBeVisible();
   });
 
-  test('SSR boundary markers are removed after client boot', async ({
-    page,
-  }) => {
+  test('no SSR boundary markers in rehydrate mode', async ({ page }) => {
     await page.goto('/');
 
     await page.waitForFunction(
-      () => {
-        return !document.getElementById('ssr-body-start');
-      },
+      () => document.body.classList.contains('ember-application'),
       { timeout: 15_000 },
     );
 
+    // Rehydrate mode does not emit boundary markers
     const startMarker = await page.$('#ssr-body-start');
     const endMarker = await page.$('#ssr-body-end');
     expect(startMarker).toBeNull();
     expect(endMarker).toBeNull();
   });
 
+  test('Ember rehydrates and becomes interactive on SSG page', async ({
+    page,
+  }) => {
+    await page.goto('/');
+
+    await page.waitForFunction(
+      () => document.body.classList.contains('ember-application'),
+      { timeout: 15_000 },
+    );
+
+    // Counter should be interactive after rehydration
+    await expect(page.locator('[data-count="0"]')).toBeVisible();
+    await page.locator('[data-action="increment"]').click();
+    await expect(page.locator('[data-count="1"]')).toBeVisible();
+  });
+
   test('Ember boots on the about page', async ({ page }) => {
     await page.goto('/about');
 
     await page.waitForFunction(
-      () => {
-        return !document.getElementById('ssr-body-start');
-      },
+      () => document.body.classList.contains('ember-application'),
       { timeout: 15_000 },
     );
 
@@ -129,9 +138,7 @@ test.describe('client Ember app boots on SSG pages', () => {
     await page.goto('/pokemon-fetch');
 
     await page.waitForFunction(
-      () => {
-        return !document.getElementById('ssr-body-start');
-      },
+      () => document.body.classList.contains('ember-application'),
       { timeout: 15_000 },
     );
 
@@ -148,9 +155,7 @@ test.describe('client-side navigation on SSG pages', () => {
 
     // Wait for Ember to boot
     await page.waitForFunction(
-      () => {
-        return !document.getElementById('ssr-body-start');
-      },
+      () => document.body.classList.contains('ember-application'),
       { timeout: 15_000 },
     );
 
@@ -189,9 +194,7 @@ test.describe('SSG counter component interactivity', () => {
     await page.goto('/');
 
     await page.waitForFunction(
-      () => {
-        return !document.getElementById('ssr-body-start');
-      },
+      () => document.body.classList.contains('ember-application'),
       { timeout: 15_000 },
     );
 
@@ -229,9 +232,7 @@ test.describe('SSG item list filtering', () => {
     await page.goto('/');
 
     await page.waitForFunction(
-      () => {
-        return !document.getElementById('ssr-body-start');
-      },
+      () => document.body.classList.contains('ember-application'),
       { timeout: 15_000 },
     );
 
@@ -275,9 +276,7 @@ test.describe('SSG shoebox prevents double-fetching', () => {
     await page.goto('/pokemon-fetch');
 
     await page.waitForFunction(
-      () => {
-        return !document.getElementById('ssr-body-start');
-      },
+      () => document.body.classList.contains('ember-application'),
       { timeout: 15_000 },
     );
 
@@ -298,9 +297,7 @@ test.describe('SSG shoebox prevents double-fetching', () => {
     await page.goto('/pokemon-fetch');
 
     await page.waitForFunction(
-      () => {
-        return !document.getElementById('ssr-body-start');
-      },
+      () => document.body.classList.contains('ember-application'),
       { timeout: 15_000 },
     );
 
@@ -325,9 +322,7 @@ test.describe('SSG shoebox prevents double-fetching', () => {
     // Initial load — shoebox prevents API calls
     await page.goto('/pokemon-fetch');
     await page.waitForFunction(
-      () => {
-        return !document.getElementById('ssr-body-start');
-      },
+      () => document.body.classList.contains('ember-application'),
       { timeout: 15_000 },
     );
     await expect(page.locator('[data-pokemon="bulbasaur"]')).toBeVisible();

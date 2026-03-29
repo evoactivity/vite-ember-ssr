@@ -16,7 +16,7 @@ Both plugins can be used together in the same Vite config for a **combined SSR +
 
 - **HappyDOM Window** provides a full per-request browser-like environment. Ember runs directly in the Node.js process with globals swapped per request.
 - **`Application.visit(url)`** drives the entire render cycle server-side.
-- **No hydration yet** — the client boots normally and replaces SSR content. SSR provides the initial visual while JS loads.
+- **Two client boot modes** — cleanup mode (default) removes SSR content when Ember boots; rehydrate mode lets Glimmer reuse the server-rendered DOM. See [Client Boot Modes](#client-boot-modes) below.
 - **Shoebox** — fetch responses captured during SSR/SSG are serialized into the HTML and replayed on the client to avoid duplicate API requests.
 
 ## Requirements
@@ -105,11 +105,32 @@ export function createSsrApp() {
 ```ts
 import Application from './app.ts';
 import config from './config/environment.ts';
-import { installShoebox, cleanupSSRContent } from 'vite-ember-ssr/client';
+import { installShoebox } from 'vite-ember-ssr/client';
 
 installShoebox();
-cleanupSSRContent();
 Application.create(config.APP);
+```
+
+#### 5. Application template (`app/templates/application.gts`)
+
+Call `cleanupSSRContent` from the application template so the SSR-rendered DOM is removed at the moment Ember renders, avoiding a flash of no content:
+
+```gts
+import { pageTitle } from 'ember-page-title';
+import { LinkTo } from '@ember/routing';
+import { cleanupSSRContent } from 'vite-ember-ssr/client';
+
+<template>
+  {{pageTitle "MyApp"}}
+  {{cleanupSSRContent}}
+
+  <nav>
+    <LinkTo @route="index">Home</LinkTo>
+    <LinkTo @route="about">About</LinkTo>
+  </nav>
+
+  {{outlet}}
+</template>
 ```
 
 #### 5. Build
@@ -183,9 +204,12 @@ Same as SSR — add markers to `index.html`:
 
 Same as SSR — export a `createSsrApp` factory function. See the SSR section above.
 
-#### 4. Client entry (`app/entry.ts`)
+#### 4. Client entry and application template
 
-Same as SSR — call `installShoebox()` and `cleanupSSRContent()` before boot. See the SSR section above.
+Same as SSR — see [Client Boot Modes](#client-boot-modes) below for the two options:
+
+- **Cleanup mode** (default): call `installShoebox()` in `entry.ts` and `{{cleanupSSRContent}}` in the application template.
+- **Rehydrate mode** (`rehydrate: true` in `emberSsg()`): call `installShoebox()` in `entry.ts`, boot with `autoboot: false` and `app.visit()` with `_renderMode: 'rehydrate'`. No `cleanupSSRContent` needed.
 
 #### 5. Build
 
@@ -241,6 +265,12 @@ emberSsg({
   // When true, fetch responses from model hooks are serialized into the HTML
   // so the client doesn't re-fetch on boot
   shoebox: true,
+
+  // Enable Glimmer rehydration (default: false)
+  // When true, prerendered HTML includes Glimmer serialization markers.
+  // The client boots with app.visit(url, { _renderMode: 'rehydrate' })
+  // to reuse the static DOM instead of replacing it.
+  rehydrate: false,
 
   // Output directory (default: 'dist')
   outDir: 'dist',
@@ -360,6 +390,84 @@ app.get('*', async (request, reply) => {
 
 Prerendered routes are served instantly as static files (no Node.js rendering cost). All other routes are rendered on-demand by the SSR server.
 
+### Client Boot Modes
+
+There are two ways the client Ember app can take over from the server-rendered HTML. The server and client must agree on the mode.
+
+#### Cleanup mode (default)
+
+The server wraps rendered content in boundary markers. On boot, `cleanupSSRContent()` removes those markers and the SSR content, then Ember renders fresh into the empty `<body>`. This is the simplest approach — SSR provides a visual shell while JS loads, then Ember replaces it.
+
+**Server:** use default options (no `rehydrate` flag)
+
+```js
+const { html } = await render({
+  url,
+  template,
+  createApp: createSsrApp,
+  shoebox: true,
+});
+```
+
+**Client entry (`app/entry.ts`):**
+
+```ts
+import Application from './app.ts';
+import config from './config/environment.ts';
+import { installShoebox } from 'vite-ember-ssr/client';
+
+installShoebox();
+Application.create(config.APP);
+```
+
+**Application template (`app/templates/application.gts`):**
+
+```gts
+import { cleanupSSRContent } from 'vite-ember-ssr/client';
+
+<template>
+  {{cleanupSSRContent}}
+  {{outlet}}
+</template>
+```
+
+Calling `cleanupSSRContent` from the template (rather than from `entry.ts` before boot) ensures the SSR content is removed at the moment Ember renders, avoiding a flash of no content.
+
+#### Rehydrate mode
+
+The server renders with `_renderMode: 'serialize'`, which annotates the DOM with Glimmer-specific markers. On boot, the client calls `app.visit()` with `_renderMode: 'rehydrate'`, and Glimmer walks the existing DOM and attaches its tracking/update machinery without tearing it down. This avoids the visual flash entirely — the server-rendered DOM becomes the live Ember app.
+
+**Server:** pass `rehydrate: true`
+
+```js
+const { html } = await render({
+  url,
+  template,
+  createApp: createSsrApp,
+  shoebox: true,
+  rehydrate: true,
+});
+```
+
+**Client entry (`app/entry.ts`):**
+
+```ts
+import Application from './app.ts';
+import config from './config/environment.ts';
+import { installShoebox } from 'vite-ember-ssr/client';
+
+installShoebox();
+
+const app = Application.create({ ...config.APP, autoboot: false });
+app.visit(window.location.pathname + window.location.search, {
+  _renderMode: 'rehydrate',
+});
+```
+
+No `cleanupSSRContent` is needed in rehydrate mode — Glimmer reuses the DOM as-is. No boundary markers are emitted by the server.
+
+> **Note:** `_renderMode` is a private Ember API (underscore prefix) that has existed since Ember 2.x for FastBoot rehydration. It is stable in practice but not part of the public API.
+
 ## API
 
 ### `vite-ember-ssr/vite-plugin`
@@ -398,6 +506,7 @@ emberSsg({
   routes: ['index', 'about'], // required: routes to prerender
   ssrEntry: 'app/app-ssr.ts', // default: SSR entry module path
   shoebox: true, // default: serialize fetch responses into HTML
+  rehydrate: false, // default: use Glimmer rehydration instead of cleanup mode
   outDir: 'dist', // default: output directory (ignored when combined with emberSsr)
   additionalNoExternal: [], // extend built-in ssr.noExternal patterns
 });
@@ -409,11 +518,11 @@ emberSsg({
 import { render } from 'vite-ember-ssr/server';
 ```
 
-- **`render({ url, template, createApp, shoebox? })`** — render an Ember app and assemble the final HTML. Returns `{ html, statusCode, error }`.
+- **`render({ url, template, createApp, shoebox?, rehydrate? })`** — render an Ember app and assemble the final HTML. Returns `{ html, statusCode, error }`.
 
 Lower-level functions are also exported for advanced use:
 
-- **`renderEmberApp({ url, createApp, shoebox? })`** — render only, returns `{ head, body, statusCode, error }`.
+- **`renderEmberApp({ url, createApp, shoebox?, rehydrate? })`** — render only, returns `{ head, body, statusCode, error }`.
 - **`assembleHTML(template, renderResult)`** — replace SSR markers in the HTML template.
 
 ### `vite-ember-ssr/client`
@@ -427,8 +536,8 @@ import {
 } from 'vite-ember-ssr/client';
 ```
 
-- **`installShoebox()`** — replay server-captured fetch responses, auto-restores `fetch` when all entries consumed.
-- **`cleanupSSRContent()`** — remove SSR-rendered DOM nodes before client Ember boots.
+- **`installShoebox()`** — replay server-captured fetch responses, auto-restores `fetch` when all entries consumed. Call in `entry.ts` before Ember boots.
+- **`cleanupSSRContent()`** — remove SSR-rendered DOM nodes. Call from the application template as `{{cleanupSSRContent}}` so removal happens at render time, avoiding a flash of no content. Only used in cleanup mode (not rehydrate mode).
 - **`cleanupShoebox()`** — manually restore original `fetch`.
 - **`isSSRRendered()`** — returns `true` if SSR boundary markers are present in the DOM. Useful for conditionally running client-side setup that should only happen on SSR-rendered pages.
 

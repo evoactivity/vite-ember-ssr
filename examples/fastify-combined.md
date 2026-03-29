@@ -167,6 +167,24 @@ node server.js
 - **`shoebox: true`** captures `fetch` responses during dynamic SSR and serializes them into the HTML. The client's `installShoebox()` replays them to avoid duplicate API requests.
 - **Always `return reply`** from async Fastify handlers to prevent stream lifecycle issues.
 
+## Rehydration
+
+The `rehydrate` option can be passed to `render()` for the dynamic SSR fallback. Note that prerendered (SSG) routes serve static files directly, so rehydration only applies to the dynamic SSR path.
+
+To enable rehydrate mode for dynamic routes:
+
+```js
+const { html, statusCode, error } = await render({
+  url,
+  template: ssrTemplate,
+  createApp: createSsrApp,
+  shoebox: true,
+  rehydrate: true,
+});
+```
+
+When using combined mode with rehydrate on the SSR fallback, the client needs to handle both cases — prerendered pages use cleanup mode (`cleanupSSRContent` in the application template), while dynamically rendered pages can use rehydrate mode. See the main [README](../packages/vite-ember-ssr/README.md#client-boot-modes) for full details on both client boot modes.
+
 ## Build output reference
 
 ```

@@ -82,6 +82,7 @@ async function setupDevMode(app) {
         template,
         createApp: createSsrApp,
         shoebox: true,
+        rehydrate: true,
       });
 
       if (error) app.log.error(error, 'SSR rendering error');
@@ -143,6 +144,7 @@ async function setupProductionMode(app) {
         template,
         createApp: createSsrApp,
         shoebox: true,
+        rehydrate: true,
       });
 
       if (error) app.log.error(error, 'SSR rendering error');

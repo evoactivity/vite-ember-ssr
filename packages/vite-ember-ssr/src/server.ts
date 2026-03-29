@@ -38,6 +38,8 @@ export interface BootOptions {
   shouldRender: boolean;
   /** Override the router's location type. */
   location?: string;
+  /** Optional render mode hint for Ember's rendering engine. */
+  _renderMode?: 'serialize' | 'rehydrate' | undefined;
 }
 
 export interface RenderOptions {
@@ -56,12 +58,30 @@ export interface RenderOptions {
    * The client can then replay these responses to avoid double-fetching.
    */
   shoebox?: boolean;
+
+  /**
+   * Enable Glimmer VM rehydration mode.
+   *
+   * When true, the server renders with `_renderMode: 'serialize'`,
+   * which annotates the rendered DOM with markers that Glimmer can
+   * use to reuse the existing HTML instead of replacing it.
+   *
+   * The client must boot with `autoboot: false` and call
+   * `app.visit(url, { _renderMode: 'rehydrate' })` to complete
+   * the rehydration.
+   *
+   * When false (default), no render mode is set and the client
+   * is expected to call `cleanupSSRContent()` before booting.
+   *
+   * @default false
+   */
+  rehydrate?: boolean;
 }
 
 export interface RenderResult {
   /** Rendered HTML from the document's <head> */
   head: string;
-  /** Rendered HTML from the document's <body>, wrapped in boundary markers */
+  /** Rendered HTML from the document's <body>. In cleanup mode, wrapped in boundary markers. In rehydrate mode, unwrapped. */
   body: string;
   /** HTTP status code (200 by default) */
   statusCode: number;
@@ -288,7 +308,7 @@ function serializeShoebox(entries: ShoeboxEntry[]): string {
 export async function renderEmberApp(
   options: RenderOptions,
 ): Promise<RenderResult> {
-  const { url, createApp, shoebox = false } = options;
+  const { url, createApp, shoebox = false, rehydrate = false } = options;
 
   const window = createSSRWindow(url);
   const document = window.document;
@@ -318,6 +338,7 @@ export async function renderEmberApp(
           document: document as unknown as Document,
           rootElement: document.body as unknown as Element,
           shouldRender: true,
+          ...(rehydrate ? { _renderMode: 'serialize' as const } : {}),
         };
 
         instance = await app.visit(url, bootOptions);
@@ -345,12 +366,20 @@ export async function renderEmberApp(
   // Prepend shoebox to head content so it's available early
   const fullHead = shoeboxHTML + head;
 
-  // Wrap body in boundary markers so the client can identify SSR content
-  const wrappedBody = [
-    '<script type="x/boundary" id="ssr-body-start"></script>',
-    body,
-    '<script type="x/boundary" id="ssr-body-end"></script>',
-  ].join('');
+  // In cleanup mode (default), wrap body in boundary markers so the
+  // client's cleanupSSRContent() can identify and remove SSR content
+  // before Ember boots.
+  //
+  // In rehydrate mode, skip the boundary markers — they would break
+  // Glimmer's RehydrateTree which expects the first child of rootElement
+  // to be Ember's serialization comment (<!--%+b:0%-->).
+  const wrappedBody = rehydrate
+    ? body
+    : [
+        '<script type="x/boundary" id="ssr-body-start"></script>',
+        body,
+        '<script type="x/boundary" id="ssr-body-end"></script>',
+      ].join('');
 
   // Cleanup: destroy in reverse order
   try {
