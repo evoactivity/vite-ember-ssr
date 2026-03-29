@@ -1,6 +1,6 @@
 import type { Plugin, PluginOption, ResolvedConfig, UserConfig } from 'vite';
 import { join, dirname } from 'node:path';
-import { mkdir, writeFile, readFile, rm, copyFile } from 'node:fs/promises';
+import { mkdir, writeFile, readFile, rm, copyFile, access } from 'node:fs/promises';
 import { pathToFileURL } from 'node:url';
 
 export const SSR_HEAD_MARKER = '<!-- VITE_EMBER_SSR_HEAD -->';
@@ -355,23 +355,44 @@ export function emberSsg(options: EmberSsgPluginOptions): Plugin {
 
       try {
         // Determine the output filename — Vite names SSR output
-        // after the entry: 'app/app-ssr.ts' → 'app-ssr.mjs'
+        // after the entry: 'app/app-ssr.ts' → 'app-ssr.mjs'.
+        // Some Vite versions using Rolldown output '.js' instead of '.mjs',
+        // so we try both extensions.
         const entryBasename = ssrEntry
           .split('/')
           .pop()!
           .replace(/\.[^.]+$/, '');
-        const ssrBundlePath = join(ssrOutDir, `${entryBasename}.mjs`);
 
-        // Use pathToFileURL + dynamic import to load the built bundle
-        const ssrModule = await import(pathToFileURL(ssrBundlePath).href);
-        const createSsrApp = ssrModule.createSsrApp;
-
-        if (typeof createSsrApp !== 'function') {
-          throw new Error(
-            `SSR entry '${ssrEntry}' does not export a 'createSsrApp' function. ` +
-              `Found exports: ${Object.keys(ssrModule).join(', ')}`,
-          );
+        let ssrBundlePath = join(ssrOutDir, `${entryBasename}.mjs`);
+        try {
+          await access(ssrBundlePath);
+        } catch {
+          ssrBundlePath = join(ssrOutDir, `${entryBasename}.js`);
         }
+        const ssrBundleURL = pathToFileURL(ssrBundlePath).href;
+
+        // Build an async createApp factory that lazily imports the SSR
+        // bundle. The import() happens inside withBrowserGlobals (via
+        // render → renderEmberApp) so browser globals like `window`
+        // exist when module-level code runs. This is required for apps
+        // using @embroider/router lazy routes, whose route-splitting.ts
+        // assigns `window._embroiderRouteBundles_` at module scope.
+        //
+        // ES module import() caches by URL, so the bundle is only
+        // loaded once — subsequent calls return the cached module.
+        const createApp = async () => {
+          const ssrModule = await import(ssrBundleURL);
+          const createSsrApp = ssrModule.createSsrApp;
+
+          if (typeof createSsrApp !== 'function') {
+            throw new Error(
+              `SSR entry '${ssrEntry}' does not export a 'createSsrApp' function. ` +
+                `Found exports: ${Object.keys(ssrModule).join(', ')}`,
+            );
+          }
+
+          return createSsrApp();
+        };
 
         // Prerender each route
         for (const route of routes) {
@@ -381,7 +402,7 @@ export function emberSsg(options: EmberSsgPluginOptions): Plugin {
             const result = await render({
               url,
               template,
-              createApp: createSsrApp,
+              createApp,
               shoebox,
               rehydrate,
             });

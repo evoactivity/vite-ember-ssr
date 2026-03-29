@@ -47,10 +47,22 @@ export interface RenderOptions {
   url: string;
 
   /**
-   * Factory function that creates a fresh Ember Application instance.
-   * This should be the `createSsrApp` export from the Ember app.
+   * Async factory that creates a fresh Ember Application instance.
+   *
+   * Called inside `withBrowserGlobals` — browser globals like `window`,
+   * `document`, etc. are available when this function runs. This makes
+   * it safe to lazily `import()` SSR bundles that reference `window` at
+   * module scope (e.g., apps using `@embroider/router` lazy routes).
+   *
+   * @example
+   * ```js
+   * createApp: async () => {
+   *   const { createSsrApp } = await import('./dist/server/app-ssr.mjs');
+   *   return createSsrApp();
+   * }
+   * ```
    */
-  createApp: () => EmberApplication;
+  createApp: () => Promise<EmberApplication>;
 
   /**
    * When true, intercepts all fetch() calls during SSR rendering and
@@ -155,7 +167,30 @@ const BROWSER_GLOBALS = [
 /**
  * Temporarily installs HappyDOM's browser globals onto globalThis
  * for the duration of a callback. Restores the originals afterward.
+ *
+ * Also handles sticky embroider bundle registrations: apps using
+ * `@embroider/router` lazy routes assign `window._embroiderRouteBundles_`
+ * at module import time. Since ES module `import()` caches by URL,
+ * module-level side effects only run once — on the first render's
+ * window. Subsequent renders create a new HappyDOM window that lacks
+ * those registrations.
+ *
+ * To solve this, we capture `_embroiderRouteBundles_` and
+ * `_embroiderEngineBundles_` from the window after the callback
+ * completes, and re-apply them to every subsequent window before
+ * the callback runs.
  */
+
+// Sticky storage for embroider bundle registrations across renders.
+const EMBROIDER_BUNDLE_KEYS = [
+  '_embroiderRouteBundles_',
+  '_embroiderEngineBundles_',
+] as const;
+
+type EmbroiderBundleKey = (typeof EMBROIDER_BUNDLE_KEYS)[number];
+
+const stickyBundles = new Map<EmbroiderBundleKey, unknown>();
+
 async function withBrowserGlobals<T>(
   window: Window,
   fn: () => Promise<T>,
@@ -178,9 +213,27 @@ async function withBrowserGlobals<T>(
     }
   }
 
+  // Re-apply any previously captured embroider bundles to this window
+  // so the 2nd+ render sees the same bundle registrations.
+  for (const key of EMBROIDER_BUNDLE_KEYS) {
+    if (stickyBundles.has(key)) {
+      (window as unknown as Record<string, unknown>)[key] =
+        stickyBundles.get(key);
+    }
+  }
+
   try {
     return await fn();
   } finally {
+    // Capture any embroider bundles that were registered during this
+    // render so they survive across HappyDOM windows.
+    for (const key of EMBROIDER_BUNDLE_KEYS) {
+      const value = (window as unknown as Record<string, unknown>)[key];
+      if (value !== undefined) {
+        stickyBundles.set(key, value);
+      }
+    }
+
     // Restore originals
     for (const name of BROWSER_GLOBALS) {
       const desc = saved.get(name);
@@ -329,7 +382,7 @@ export async function renderEmberApp(
 
       try {
         // Create a fresh Ember application (autoboot must be false)
-        app = createApp();
+        app = await createApp();
 
         // Application#visit() handles the full boot sequence:
         //   app.boot() → app.buildInstance() → instance.boot(options) → instance.visit(url)
@@ -465,7 +518,10 @@ export interface SSRResult {
  * const { html, statusCode, error } = await render({
  *   url: '/about',
  *   template,
- *   createApp: createSsrApp,
+ *   createApp: async () => {
+ *     const { createSsrApp } = await import('./dist/server/app-ssr.mjs');
+ *     return createSsrApp();
+ *   },
  *   shoebox: true,
  * });
  * reply.code(statusCode).type('text/html').send(html);

@@ -33,17 +33,22 @@ async function start() {
     serveDotFiles: false,
   });
 
-  // Load the pre-built SSR bundle
+  // Build an async createApp factory that lazily imports the SSR
+  // bundle inside withBrowserGlobals where window exists.
   const serverEntryPath = resolve(serverDir, 'app-ssr.mjs');
-  const appModule = await import(serverEntryPath);
-  const { createSsrApp } = appModule;
+  const createApp = async () => {
+    const appModule = await import(serverEntryPath);
+    const { createSsrApp } = appModule;
 
-  if (typeof createSsrApp !== 'function') {
-    throw new Error(
-      'Could not find `createSsrApp` export in dist/server/app-ssr.mjs. ' +
-        'Make sure you ran `pnpm build:all` in the test-app-combined package.',
-    );
-  }
+    if (typeof createSsrApp !== 'function') {
+      throw new Error(
+        'Could not find `createSsrApp` export in dist/server/app-ssr.mjs. ' +
+          'Make sure you ran `pnpm build:all` in the test-app-combined package.',
+      );
+    }
+
+    return createSsrApp();
+  };
 
   // Read the SSR template preserved by emberSsg during the client build.
   // When both plugins are used together, emberSsg copies index.html to
@@ -76,7 +81,7 @@ async function start() {
       const { html, statusCode, error } = await render({
         url,
         template: ssrTemplate,
-        createApp: createSsrApp,
+        createApp,
         shoebox: true,
       });
 

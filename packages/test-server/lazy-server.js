@@ -32,22 +32,30 @@ async function start() {
     serveDotFiles: false,
   });
 
-  // Load the pre-built SSR bundle
-  const serverEntryPath = resolve(testAppDist, 'server/app-ssr.mjs');
-  const appModule = await import(serverEntryPath);
-  const { createSsrApp } = appModule;
-
-  if (typeof createSsrApp !== 'function') {
-    throw new Error(
-      'Could not find `createSsrApp` export in dist/server/app-ssr.mjs. ' +
-        'Make sure you ran `pnpm build:all` in the test-app-lazy-ssr package.',
-    );
-  }
-
   const template = await readFile(
     resolve(testAppDist, 'client/index.html'),
     'utf-8',
   );
+
+  // Build an async createApp factory that lazily imports the SSR
+  // bundle inside withBrowserGlobals where window exists.
+  // This is required for apps using @embroider/router lazy routes,
+  // whose route-splitting.ts assigns window._embroiderRouteBundles_
+  // at module scope.
+  const serverEntryPath = resolve(testAppDist, 'server/app-ssr.mjs');
+  const createApp = async () => {
+    const appModule = await import(serverEntryPath);
+    const { createSsrApp } = appModule;
+
+    if (typeof createSsrApp !== 'function') {
+      throw new Error(
+        'Could not find `createSsrApp` export in dist/server/app-ssr.mjs. ' +
+          'Make sure you ran `pnpm build:all` in the test-app-lazy-ssr package.',
+      );
+    }
+
+    return createSsrApp();
+  };
 
   app.get('*', async (request, reply) => {
     const url = request.url;
@@ -60,7 +68,7 @@ async function start() {
       const { html, statusCode, error } = await render({
         url,
         template,
-        createApp: createSsrApp,
+        createApp,
         shoebox: false,
         rehydrate: false,
       });

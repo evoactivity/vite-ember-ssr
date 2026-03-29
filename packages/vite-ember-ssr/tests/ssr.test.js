@@ -7,14 +7,17 @@ import { renderEmberApp, assembleHTML } from 'vite-ember-ssr/server';
 const __dirname = fileURLToPath(new URL('.', import.meta.url));
 const testAppDist = resolve(__dirname, '../../test-app/dist');
 
-let createSsrApp;
 let template;
 
-beforeAll(async () => {
-  const serverEntryPath = resolve(testAppDist, 'server/app-ssr.mjs');
+// Async createApp factory — lazily imports the SSR bundle inside
+// withBrowserGlobals where window exists.
+const serverEntryPath = resolve(testAppDist, 'server/app-ssr.mjs');
+const createApp = async () => {
   const appModule = await import(serverEntryPath);
-  createSsrApp = appModule.createSsrApp;
+  return appModule.createSsrApp();
+};
 
+beforeAll(async () => {
   template = await readFile(resolve(testAppDist, 'client/index.html'), 'utf-8');
 });
 
@@ -24,7 +27,7 @@ beforeAll(async () => {
 async function renderRoute(url, options = {}) {
   const rendered = await renderEmberApp({
     url,
-    createApp: createSsrApp,
+    createApp,
     ...options,
   });
   const html = assembleHTML(template, rendered);

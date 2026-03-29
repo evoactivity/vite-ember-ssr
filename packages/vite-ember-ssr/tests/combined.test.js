@@ -252,7 +252,6 @@ describe('Combined mode: SSR server bundle', () => {
   it('can dynamically render a non-prerendered route', async () => {
     const { render } = await import('vite-ember-ssr/server');
     const bundlePath = resolve(serverDir, 'app-ssr.mjs');
-    const { createSsrApp } = await import(pathToFileURL(bundlePath).href);
 
     // Read the preserved SSR template — emberSsg copies index.html to
     // _template.html before overwriting it with prerendered content.
@@ -264,7 +263,10 @@ describe('Combined mode: SSR server bundle', () => {
     const result = await render({
       url: '/pokemon-fetch',
       template,
-      createApp: createSsrApp,
+      createApp: async () => {
+        const { createSsrApp } = await import(pathToFileURL(bundlePath).href);
+        return createSsrApp();
+      },
       shoebox: true,
     });
 
@@ -277,7 +279,6 @@ describe('Combined mode: SSR server bundle', () => {
   it('renders the about route dynamically (matching prerendered output)', async () => {
     const { render } = await import('vite-ember-ssr/server');
     const bundlePath = resolve(serverDir, 'app-ssr.mjs');
-    const { createSsrApp } = await import(pathToFileURL(bundlePath).href);
 
     const template = await readFile(
       resolve(clientDir, '_template.html'),
@@ -287,7 +288,10 @@ describe('Combined mode: SSR server bundle', () => {
     const result = await render({
       url: '/about',
       template,
-      createApp: createSsrApp,
+      createApp: async () => {
+        const { createSsrApp } = await import(pathToFileURL(bundlePath).href);
+        return createSsrApp();
+      },
       shoebox: true,
     });
 

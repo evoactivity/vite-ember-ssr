@@ -66,21 +66,23 @@ async function setupDevMode(app) {
       );
       template = await vite.transformIndexHtml(url, template);
 
-      const { createSsrApp } = await vite.ssrLoadModule(
-        resolve(testAppRoot, 'app/app-ssr.ts'),
-      );
-
-      if (typeof createSsrApp !== 'function') {
-        throw new Error(
-          'Could not find `createSsrApp` export in app/app-ssr.ts. ' +
-            'Make sure your Ember app exports a createSsrApp factory function.',
-        );
-      }
-
       const { html, statusCode, error } = await render({
         url,
         template,
-        createApp: createSsrApp,
+        createApp: async () => {
+          const { createSsrApp } = await vite.ssrLoadModule(
+            resolve(testAppRoot, 'app/app-ssr.ts'),
+          );
+
+          if (typeof createSsrApp !== 'function') {
+            throw new Error(
+              'Could not find `createSsrApp` export in app/app-ssr.ts. ' +
+                'Make sure your Ember app exports a createSsrApp factory function.',
+            );
+          }
+
+          return createSsrApp();
+        },
         shoebox: true,
         rehydrate: true,
       });
@@ -114,22 +116,27 @@ async function setupProductionMode(app) {
     serveDotFiles: false,
   });
 
-  // Load the pre-built SSR bundle
-  const serverEntryPath = resolve(testAppDist, 'server/app-ssr.mjs');
-  const appModule = await import(serverEntryPath);
-  const { createSsrApp } = appModule;
-
-  if (typeof createSsrApp !== 'function') {
-    throw new Error(
-      'Could not find `createSsrApp` export in dist/server/app-ssr.mjs. ' +
-        'Make sure you ran `pnpm build:all` in the test-app package.',
-    );
-  }
-
   const template = await readFile(
     resolve(testAppDist, 'client/index.html'),
     'utf-8',
   );
+
+  // Build an async createApp factory that lazily imports the SSR
+  // bundle inside withBrowserGlobals where window exists.
+  const serverEntryPath = resolve(testAppDist, 'server/app-ssr.mjs');
+  const createApp = async () => {
+    const appModule = await import(serverEntryPath);
+    const { createSsrApp } = appModule;
+
+    if (typeof createSsrApp !== 'function') {
+      throw new Error(
+        'Could not find `createSsrApp` export in dist/server/app-ssr.mjs. ' +
+          'Make sure you ran `pnpm build:all` in the test-app package.',
+      );
+    }
+
+    return createSsrApp();
+  };
 
   app.get('*', async (request, reply) => {
     const url = request.url;
@@ -142,7 +149,7 @@ async function setupProductionMode(app) {
       const { html, statusCode, error } = await render({
         url,
         template,
-        createApp: createSsrApp,
+        createApp,
         shoebox: true,
         rehydrate: true,
       });
