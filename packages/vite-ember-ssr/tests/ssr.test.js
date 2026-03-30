@@ -114,6 +114,20 @@ describe('SSR HTML structure', () => {
     expect(html).not.toContain('id="ssr-body-end"');
   });
 
+  it('includes rehydrate flag script when rehydrate is true', async () => {
+    const { html } = await renderRoute('/', { rehydrate: true });
+
+    expect(html).toContain(
+      '<script>window.__vite_ember_ssr_rehydrate__=true</script>',
+    );
+  });
+
+  it('omits rehydrate flag script when rehydrate is false', async () => {
+    const { html } = await renderRoute('/');
+
+    expect(html).not.toContain('__vite_ember_ssr_rehydrate__');
+  });
+
   it('includes Glimmer serialization comments when rehydrate is true', async () => {
     const { rendered } = await renderRoute('/', { rehydrate: true });
 

@@ -209,3 +209,34 @@ export function cleanupSSRContent(): void {
 export function isSSRRendered(): boolean {
   return document.getElementById('ssr-body-start') !== null;
 }
+
+/**
+ * Checks whether the current page was rendered with rehydration mode.
+ *
+ * Returns `true` when the server (or SSG build) injected the
+ * `window.__vite_ember_ssr_rehydrate__` flag. Use this in your client
+ * entry point to decide whether to boot Ember in rehydrate mode or
+ * with a normal boot:
+ *
+ * ```ts
+ * import { shouldRehydrate, installShoebox } from 'vite-ember-ssr/client';
+ *
+ * installShoebox();
+ *
+ * const app = Application.create({ ...config.APP, autoboot: false });
+ *
+ * app.visit(window.location.pathname + window.location.search, {
+ *   ...(shouldRehydrate() ? { _renderMode: 'rehydrate' } : {}),
+ * });
+ * ```
+ *
+ * This is especially important for SSG apps where only prerendered
+ * routes carry the flag — non-SSG routes will boot normally without
+ * attempting rehydration (which would fail with no serialized DOM).
+ */
+export function shouldRehydrate(): boolean {
+  return (
+    (window as unknown as Record<string, unknown>)
+      .__vite_ember_ssr_rehydrate__ === true
+  );
+}

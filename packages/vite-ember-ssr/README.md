@@ -219,7 +219,7 @@ Same as SSR — export a `createSsrApp` factory function. See the SSR section ab
 Same as SSR — see [Client Boot Modes](#client-boot-modes) below for the two options:
 
 - **Cleanup mode** (default): call `{{cleanupSSRContent}}` in the application template. Ember replaces the server-rendered DOM on boot.
-- **Rehydrate mode** (`rehydrate: true` in `emberSsg()`): boot with `autoboot: false` and `app.visit()` with `_renderMode: 'rehydrate'`. No `cleanupSSRContent` needed.
+- **Rehydrate mode** (`rehydrate: true` in `emberSsg()`): use `shouldRehydrate()` to detect prerendered pages and boot with `_renderMode: 'rehydrate'`. Non-SSG routes boot normally. No `cleanupSSRContent` needed.
 
 If your routes make `fetch` calls during SSG that the client would repeat, see [Shoebox](#shoebox) to avoid duplicate requests.
 
@@ -279,9 +279,11 @@ emberSsg({
   shoebox: false,
 
   // Enable Glimmer rehydration (default: false)
-  // When true, prerendered HTML includes Glimmer serialization markers.
-  // The client boots with app.visit(url, { _renderMode: 'rehydrate' })
-  // to reuse the static DOM instead of replacing it.
+  // When true, prerendered HTML includes Glimmer serialization markers
+  // and a `window.__vite_ember_ssr_rehydrate__` flag. The client uses
+  // `shouldRehydrate()` to detect this and boot with
+  // `app.visit(url, { _renderMode: 'rehydrate' })` to reuse the
+  // static DOM instead of replacing it.
   rehydrate: false,
 
   // Output directory (default: 'dist')
@@ -468,14 +470,23 @@ const { html } = await render({
 
 **Client entry (`app/entry.ts`):**
 
+The server injects a `window.__vite_ember_ssr_rehydrate__` flag when rehydrate mode is active. Use `shouldRehydrate()` to detect it and choose the correct boot mode — this is especially important for SSG apps where only prerendered routes carry the flag:
+
 ```ts
 import Application from './app.ts';
 import config from './config/environment.ts';
+import { shouldRehydrate } from 'vite-ember-ssr/client';
 
-const app = Application.create({ ...config.APP, autoboot: false });
-app.visit(window.location.pathname + window.location.search, {
-  _renderMode: 'rehydrate',
-});
+if (shouldRehydrate()) {
+  const app = Application.create({ ...config.APP, autoboot: false });
+
+  app.visit(window.location.pathname + window.location.search, {
+    _renderMode: 'rehydrate',
+  });
+  return;
+}
+
+Application.create(config.APP);
 ```
 
 No `cleanupSSRContent` is needed in rehydrate mode — Glimmer reuses the DOM as-is. No boundary markers are emitted by the server.
@@ -529,14 +540,20 @@ For rehydrate mode:
 ```ts
 import Application from './app.ts';
 import config from './config/environment.ts';
-import { installShoebox } from 'vite-ember-ssr/client';
+import { installShoebox, shouldRehydrate } from 'vite-ember-ssr/client';
 
 installShoebox();
 
-const app = Application.create({ ...config.APP, autoboot: false });
-app.visit(window.location.pathname + window.location.search, {
-  _renderMode: 'rehydrate',
-});
+if (shouldRehydrate()) {
+  const app = Application.create({ ...config.APP, autoboot: false });
+
+  app.visit(window.location.pathname + window.location.search, {
+    _renderMode: 'rehydrate',
+  });
+  return;
+}
+
+Application.create(config.APP);
 ```
 
 #### How it works
@@ -658,6 +675,7 @@ import {
   cleanupSSRContent,
   cleanupShoebox,
   isSSRRendered,
+  shouldRehydrate,
 } from 'vite-ember-ssr/client';
 ```
 
@@ -665,20 +683,21 @@ import {
 - **`cleanupSSRContent()`** — remove SSR-rendered DOM nodes. Call from the application template as `{{cleanupSSRContent}}` so removal happens at render time, avoiding a flash of no content. Only used in cleanup mode (not rehydrate mode).
 - **`cleanupShoebox()`** — manually restore original `fetch`.
 - **`isSSRRendered()`** — returns `true` if SSR boundary markers are present in the DOM. Useful for conditionally running client-side setup that should only happen on SSR-rendered pages.
+- **`shouldRehydrate()`** — returns `true` if the current page was rendered with rehydrate mode (the server injected `window.__vite_ember_ssr_rehydrate__`). Use this in `entry.ts` to decide whether to boot Ember in rehydrate mode or with a normal boot. Essential for SSG apps where only prerendered routes should rehydrate.
 
 ## Monorepo development
 
 This repo contains seven packages:
 
-| Package                      | Description                         |
-| ---------------------------- | ----------------------------------- |
-| `packages/vite-ember-ssr`    | Core library + test suites          |
-| `packages/test-app`          | Ember test app (SSR)                |
-| `packages/test-app-ssg`      | Ember test app (SSG)                |
-| `packages/test-app-combined` | Ember test app (SSR + SSG)          |
-| `packages/test-app-lazy-ssr` | Ember test app (SSR + lazy routes)  |
-| `packages/test-app-lazy-ssg` | Ember test app (SSG + lazy routes)  |
-| `packages/test-server`       | Fastify SSR server                  |
+| Package                      | Description                        |
+| ---------------------------- | ---------------------------------- |
+| `packages/vite-ember-ssr`    | Core library + test suites         |
+| `packages/test-app`          | Ember test app (SSR)               |
+| `packages/test-app-ssg`      | Ember test app (SSG)               |
+| `packages/test-app-combined` | Ember test app (SSR + SSG)         |
+| `packages/test-app-lazy-ssr` | Ember test app (SSR + lazy routes) |
+| `packages/test-app-lazy-ssg` | Ember test app (SSG + lazy routes) |
+| `packages/test-server`       | Fastify SSR server                 |
 
 ```sh
 pnpm install

@@ -426,8 +426,16 @@ export async function renderEmberApp(
   // Build the shoebox script tag (empty string if no entries)
   const shoeboxHTML = serializeShoebox(shoeboxEntries);
 
-  // Prepend shoebox to head content so it's available early
-  const fullHead = shoeboxHTML + head;
+  // When rehydrate mode is active, inject a flag the client can read
+  // to decide whether to boot with `_renderMode: 'rehydrate'`.
+  // This is critical for SSG: only prerendered pages carry the flag,
+  // so the client can fall back to a normal boot on non-SSG routes.
+  const rehydrateHTML = rehydrate
+    ? '<script>window.__vite_ember_ssr_rehydrate__=true</script>'
+    : '';
+
+  // Prepend shoebox and rehydrate flag to head content so they're available early
+  const fullHead = rehydrateHTML + shoeboxHTML + head;
 
   // In cleanup mode (default), wrap body in boundary markers so the
   // client's cleanupSSRContent() can identify and remove SSR content

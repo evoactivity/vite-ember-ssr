@@ -199,7 +199,7 @@ const { html, statusCode, error } = await render({
 });
 ```
 
-You can use the same mode for both (simplest), or mix them — e.g., rehydrate for prerendered pages and cleanup for dynamic SSR, or vice versa. If both use the same mode, the client entry is straightforward. If they differ, the client needs to detect which mode was used (e.g., check for boundary markers with `isSSRRendered()`). See the main [README](../packages/vite-ember-ssr/README.md#client-boot-modes) for full details on both client boot modes.
+You can use the same mode for both (simplest), or mix them — e.g., rehydrate for prerendered pages and cleanup for dynamic SSR, or vice versa. If both use the same mode, the client entry is straightforward. If they differ, the client uses `shouldRehydrate()` from `vite-ember-ssr/client` to detect which mode was used and boot accordingly. See the main [README](../packages/vite-ember-ssr/README.md#client-boot-modes) for full details on both client boot modes.
 
 ## Build output reference
 

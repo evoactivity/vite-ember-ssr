@@ -132,6 +132,13 @@ describe('Combined mode: prerendered HTML content', () => {
     }
   });
 
+  it('does NOT include rehydrate flag script (cleanup mode)', async () => {
+    for (const route of ['index', 'about', 'contact']) {
+      const html = await readPrerenderedHtml(route);
+      expect(html).not.toContain('__vite_ember_ssr_rehydrate__');
+    }
+  });
+
   it('includes client JS and CSS bundles', async () => {
     for (const route of ['index', 'about', 'contact']) {
       const html = await readPrerenderedHtml(route);

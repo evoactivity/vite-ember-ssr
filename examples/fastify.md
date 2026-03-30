@@ -60,9 +60,7 @@ async function setupDev(app) {
       let template = await readFile(resolve(appRoot, 'index.html'), 'utf-8');
       template = await vite.transformIndexHtml(request.url, template);
 
-      const mod = await vite.ssrLoadModule(
-        resolve(appRoot, 'app/app-ssr.ts'),
-      );
+      const mod = await vite.ssrLoadModule(resolve(appRoot, 'app/app-ssr.ts'));
 
       const { html, statusCode, error } = await render({
         url: request.url,
@@ -173,4 +171,4 @@ const { html, statusCode, error } = await render({
 });
 ```
 
-In rehydrate mode, the server renders with `_renderMode: 'serialize'`, annotating the DOM with Glimmer markers. The client must boot with `autoboot: false` and call `app.visit(url, { _renderMode: 'rehydrate' })`. No `cleanupSSRContent` is needed. See the main [README](../packages/vite-ember-ssr/README.md#client-boot-modes) for full client-side setup.
+In rehydrate mode, the server renders with `_renderMode: 'serialize'`, annotating the DOM with Glimmer markers. The client uses `shouldRehydrate()` from `vite-ember-ssr/client` to detect this and boot accordingly — see the main [README](../packages/vite-ember-ssr/README.md#client-boot-modes) for the full client-side setup. No `cleanupSSRContent` is needed.

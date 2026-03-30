@@ -93,6 +93,22 @@ describe('SSG HTML structure', () => {
     }
   });
 
+  it('includes rehydrate flag script in rehydrate mode', async () => {
+    for (const route of ['index', 'about', 'contact', 'pokemon-fetch']) {
+      const html = await readSsgHtml(route);
+      expect(html).toContain(
+        '<script>window.__vite_ember_ssr_rehydrate__=true</script>',
+      );
+    }
+  });
+
+  it('places the rehydrate flag in the <head> section', async () => {
+    const html = await readSsgHtml('index');
+    const headMatch = html.match(/<head[^>]*>([\s\S]*?)<\/head>/);
+    expect(headMatch).not.toBeNull();
+    expect(headMatch[1]).toContain('__vite_ember_ssr_rehydrate__');
+  });
+
   it('includes the client JS bundle in all pages', async () => {
     for (const route of ['index', 'about', 'contact', 'pokemon-fetch']) {
       const html = await readSsgHtml(route);
