@@ -14,4 +14,7 @@ export default defineConfig({
       routes: ['index', 'about', 'contact'],
     }),
   ],
+  ssr: {
+    noExternal: ['nvp.ui'],
+  },
 });

@@ -288,9 +288,6 @@ emberSsg({
 
   // Output directory (default: 'dist')
   outDir: 'dist',
-
-  // Additional packages for ssr.noExternal
-  additionalNoExternal: ['my-addon'],
 });
 ```
 
@@ -633,7 +630,6 @@ Options:
 emberSsr({
   clientOutDir: 'dist/client', // default
   serverOutDir: 'dist/server', // default
-  additionalNoExternal: ['my-addon'], // extend built-in patterns
 });
 ```
 
@@ -650,9 +646,30 @@ emberSsg({
   shoebox: false, // default: serialize fetch responses into HTML
   rehydrate: false, // default: use Glimmer rehydration instead of cleanup mode
   outDir: 'dist', // default: output directory (ignored when combined with emberSsr)
-  additionalNoExternal: [], // extend built-in ssr.noExternal patterns
 });
 ```
+
+#### Third-party packages with CSS imports (`ssr.noExternal`)
+
+Both plugins automatically configure `ssr.noExternal` for Ember ecosystem packages (`@ember/*`, `@glimmer/*`, `@embroider/*`, `@warp-drive/*`, `ember-*`, `decorator-transforms`). This tells Vite to bundle these packages into the SSR output, where their CSS imports are safely no-opped.
+
+If your app uses third-party packages that contain bare CSS imports (e.g. `import './styles.css'`), you need to add them to `ssr.noExternal` in your Vite config. Without this, Node.js will try to load the `.css` files directly at runtime and fail with `ERR_UNKNOWN_FILE_EXTENSION`.
+
+```js
+// vite.config.mjs
+export default defineConfig({
+  plugins: [
+    emberSsr(), // or emberSsg({ routes: [...] })
+  ],
+  ssr: {
+    // Vite deep-merges this with the Ember ecosystem patterns
+    // that the plugin provides automatically.
+    noExternal: ['nvp.ui', 'some-other-package-with-css'],
+  },
+});
+```
+
+This applies to both SSR and SSG modes. Vite's `config` hook deep-merges arrays, so your entries are concatenated with the built-in patterns — you don't need to repeat them.
 
 ### `vite-ember-ssr/server`
 

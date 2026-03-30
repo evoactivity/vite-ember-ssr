@@ -235,12 +235,6 @@ export interface EmberSsrPluginOptions {
    * @default 'dist/server'
    */
   serverOutDir?: string;
-
-  /**
-   * Additional packages to add to `ssr.noExternal` beyond the
-   * built-in Ember ecosystem patterns. Accepts strings and RegExps.
-   */
-  additionalNoExternal?: (string | RegExp)[];
 }
 
 /**
@@ -253,6 +247,26 @@ export interface EmberSsrPluginOptions {
  *   `dist/server` with `target: 'node22'` for SSR builds
  * - Writes a `package.json` with `"type": "module"` to the SSR
  *   build output directory (needed for Node ESM compatibility)
+ *
+ * If your app imports third-party packages that contain bare CSS
+ * imports (e.g. `import './styles.css'`), those packages must be
+ * added to `ssr.noExternal` in your Vite config so that Vite bundles
+ * them into the SSR output (where CSS imports are safely no-opped).
+ * Without this, Node.js will attempt to load the `.css` files
+ * directly and fail with `ERR_UNKNOWN_FILE_EXTENSION`.
+ *
+ * ```js
+ * // vite.config.mjs
+ * export default defineConfig({
+ *   plugins: [emberSsr()],
+ *   ssr: {
+ *     noExternal: ['some-package-with-css'],
+ *   },
+ * });
+ * ```
+ *
+ * Vite deep-merges your `ssr.noExternal` array with the Ember
+ * ecosystem patterns this plugin provides automatically.
  */
 export function emberSsr(options: EmberSsrPluginOptions = {}): Plugin {
   let resolvedConfig: ResolvedConfig;
@@ -261,10 +275,7 @@ export function emberSsr(options: EmberSsrPluginOptions = {}): Plugin {
     name: 'vite-ember-ssr',
 
     config(_userConfig, env): UserConfig {
-      const noExternal = [
-        ...EMBER_SSR_NO_EXTERNAL,
-        ...(options.additionalNoExternal ?? []),
-      ];
+      const noExternal = [...EMBER_SSR_NO_EXTERNAL];
 
       // During the SSG child build, only provide ssr.noExternal —
       // don't override build.outDir or other build settings
@@ -398,12 +409,6 @@ export interface EmberSsgPluginOptions {
    * @default false
    */
   rehydrate?: boolean;
-
-  /**
-   * Additional packages to add to `ssr.noExternal` beyond the
-   * built-in Ember ecosystem patterns.
-   */
-  additionalNoExternal?: (string | RegExp)[];
 }
 
 /**
@@ -417,6 +422,30 @@ export interface EmberSsgPluginOptions {
  * renders each route using HappyDOM, and writes the resulting HTML files
  * into the client output directory. The temporary SSR bundle is cleaned
  * up automatically.
+ *
+ * If your app imports third-party packages that contain bare CSS
+ * imports (e.g. `import './styles.css'`), those packages must be
+ * added to `ssr.noExternal` in your Vite config so that Vite bundles
+ * them into the SSR output (where CSS imports are safely no-opped).
+ * Without this, Node.js will attempt to load the `.css` files
+ * directly and fail with `ERR_UNKNOWN_FILE_EXTENSION`.
+ *
+ * ```js
+ * // vite.config.mjs
+ * export default defineConfig({
+ *   plugins: [
+ *     emberSsg({
+ *       routes: ['index', 'about', 'contact'],
+ *     }),
+ *   ],
+ *   ssr: {
+ *     noExternal: ['some-package-with-css'],
+ *   },
+ * });
+ * ```
+ *
+ * Vite deep-merges your `ssr.noExternal` array with the Ember
+ * ecosystem patterns this plugin provides automatically.
  *
  * @example
  * ```js
@@ -440,7 +469,6 @@ export function emberSsg(options: EmberSsgPluginOptions): Plugin {
     ssrEntry = 'app/app-ssr.ts',
     shoebox = false,
     rehydrate = false,
-    additionalNoExternal = [],
   } = options;
 
   // Track whether the user explicitly provided outDir
@@ -455,7 +483,7 @@ export function emberSsg(options: EmberSsgPluginOptions): Plugin {
     name: 'vite-ember-ssg',
 
     config(userConfig): UserConfig {
-      const noExternal = [...EMBER_SSR_NO_EXTERNAL, ...additionalNoExternal];
+      const noExternal = [...EMBER_SSR_NO_EXTERNAL];
 
       // During the child SSR build, only provide ssr.noExternal —
       // don't override build.outDir (the parent sets it explicitly).
@@ -579,7 +607,7 @@ export function emberSsg(options: EmberSsgPluginOptions): Plugin {
             sourcemap: false,
           },
           ssr: {
-            noExternal: [...EMBER_SSR_NO_EXTERNAL, ...additionalNoExternal],
+            noExternal: [...EMBER_SSR_NO_EXTERNAL],
           },
         });
       } catch (e) {

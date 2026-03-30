@@ -40,5 +40,8 @@
   },
   "ember": {
     "edition": "octane"
+  },
+  "dependencies": {
+    "nvp.ui": "^0.5.3"
   }
 }

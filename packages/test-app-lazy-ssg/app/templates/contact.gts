@@ -1,4 +1,5 @@
 import SharedBadge from '../components/shared-badge.gts';
+import 'nvp.ui';
 
 <template>
   <main data-route="contact">

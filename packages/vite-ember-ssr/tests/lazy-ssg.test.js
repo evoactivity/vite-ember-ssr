@@ -386,11 +386,14 @@ describe('Lazy SSG CSS manifest', () => {
     );
   });
 
-  it('contact route has only shared component CSS', () => {
-    // contact.gts only imports SharedBadge (no direct CSS import)
-    expect(cssManifest.contact.length).toBe(1);
-    expect(cssManifest.contact[0]).toMatch(
-      /\/assets\/shared-badge-[a-zA-Z0-9_-]+\.css$/,
+  it('contact route has shared component CSS and its own dependency CSS', () => {
+    // contact.gts imports SharedBadge (shared CSS) and nvp.ui (which brings its own CSS)
+    expect(cssManifest.contact.length).toBe(2);
+    expect(cssManifest.contact).toEqual(
+      expect.arrayContaining([
+        expect.stringMatching(/\/assets\/contact-[a-zA-Z0-9_-]+\.css$/),
+        expect.stringMatching(/\/assets\/shared-badge-[a-zA-Z0-9_-]+\.css$/),
+      ]),
     );
   });
 
@@ -420,9 +423,12 @@ describe('Lazy SSG CSS link injection in prerendered HTML', () => {
     );
   });
 
-  it('injects <link> tag for shared component CSS on the contact page', async () => {
+  it('injects <link> tags for contact route CSS (own + shared) on the contact page', async () => {
     const html = await readLazyHtml('contact');
 
+    expect(html).toMatch(
+      /<link rel="stylesheet" href="\/assets\/contact-[a-zA-Z0-9_-]+\.css">/,
+    );
     expect(html).toMatch(
       /<link rel="stylesheet" href="\/assets\/shared-badge-[a-zA-Z0-9_-]+\.css">/,
     );
@@ -437,6 +443,9 @@ describe('Lazy SSG CSS link injection in prerendered HTML', () => {
 
     expect(html).not.toMatch(
       /<link rel="stylesheet" href="\/assets\/about-[a-zA-Z0-9_-]+\.css">/,
+    );
+    expect(html).not.toMatch(
+      /<link rel="stylesheet" href="\/assets\/contact-[a-zA-Z0-9_-]+\.css">/,
     );
     expect(html).not.toMatch(
       /<link rel="stylesheet" href="\/assets\/shared-badge-[a-zA-Z0-9_-]+\.css">/,
@@ -466,6 +475,9 @@ describe('Lazy SSG CSS link injection in prerendered HTML', () => {
     expect(headMatch).not.toBeNull();
 
     const headContent = headMatch[1];
+    expect(headContent).toMatch(
+      /<link rel="stylesheet" href="\/assets\/contact-[a-zA-Z0-9_-]+\.css">/,
+    );
     expect(headContent).toMatch(
       /<link rel="stylesheet" href="\/assets\/shared-badge-[a-zA-Z0-9_-]+\.css">/,
     );
