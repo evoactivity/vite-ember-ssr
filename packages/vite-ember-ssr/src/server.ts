@@ -1,4 +1,5 @@
 import { Window } from 'happy-dom';
+import type { CssManifest } from './vite-plugin.js';
 
 const SSR_HEAD_MARKER = '<!-- VITE_EMBER_SSR_HEAD -->';
 const SSR_BODY_MARKER = '<!-- VITE_EMBER_SSR_BODY -->';
@@ -25,6 +26,11 @@ export interface EmberApplicationInstance {
   destroy(): void;
   getURL?(): string;
   _booted?: boolean;
+  /**
+   * Look up a registered object (service, etc.) on the instance.
+   * Used internally to access the router service for CSS injection.
+   */
+  lookup?(fullName: string): unknown;
 }
 
 export interface BootOptions {
@@ -88,6 +94,33 @@ export interface RenderOptions {
    * @default false
    */
   rehydrate?: boolean;
+
+  /**
+   * CSS manifest mapping route names to their associated CSS asset paths.
+   *
+   * Generated automatically by the `emberSsr()` Vite plugin during the
+   * client build (written as `css-manifest.json`). When provided, the
+   * renderer injects `<link rel="stylesheet">` tags into the `<head>`
+   * for CSS files associated with the active route.
+   *
+   * This solves the problem where Vite's SSR build strips CSS imports
+   * from lazy-loaded route bundles, causing missing styles in the
+   * initial HTML response.
+   *
+   * @example
+   * ```js
+   * const manifest = JSON.parse(
+   *   await readFile('dist/client/css-manifest.json', 'utf-8')
+   * );
+   * const result = await render({
+   *   url: '/about',
+   *   template,
+   *   createApp,
+   *   cssManifest: manifest,
+   * });
+   * ```
+   */
+  cssManifest?: CssManifest;
 }
 
 export interface RenderResult {
@@ -353,6 +386,89 @@ function serializeShoebox(entries: ShoeboxEntry[]): string {
   return `<script type="application/json" id="${SHOEBOX_SCRIPT_ID}">${safeJson}</script>`;
 }
 
+// ─── CSS Manifest: Route-Aware Lazy CSS Injection ───────────────────
+
+/**
+ * Extracts the current route name from an Ember ApplicationInstance
+ * by looking up the router service.
+ *
+ * Returns the dot-separated route name (e.g., 'about', 'blog.post')
+ * or undefined if the router service is not available.
+ */
+function getActiveRouteName(
+  instance: EmberApplicationInstance,
+): string | undefined {
+  if (!instance.lookup) return undefined;
+
+  try {
+    const router = instance.lookup('service:router') as
+      | { currentRouteName?: string }
+      | undefined;
+    return router?.currentRouteName ?? undefined;
+  } catch {
+    // Router service may not be available in all configurations
+    return undefined;
+  }
+}
+
+/**
+ * Collects all route names in the hierarchy for a given leaf route.
+ *
+ * Ember route names use dot notation for nesting:
+ * - 'about' → ['about']
+ * - 'blog.post' → ['blog', 'blog.post']
+ * - 'admin.users.edit' → ['admin', 'admin.users', 'admin.users.edit']
+ *
+ * This ensures that CSS from parent routes is also included when
+ * rendering a nested child route.
+ */
+function expandRouteHierarchy(routeName: string): string[] {
+  const segments = routeName.split('.');
+  const routes: string[] = [];
+  for (let i = 1; i <= segments.length; i++) {
+    routes.push(segments.slice(0, i).join('.'));
+  }
+  return routes;
+}
+
+/**
+ * Builds `<link rel="stylesheet">` tags for CSS files associated with
+ * the active route and its parent routes.
+ *
+ * Uses the CSS manifest (generated at build time by the `emberSsr()`
+ * Vite plugin) to map route names to their CSS asset paths.
+ *
+ * Returns an empty string if no manifest is provided, the route name
+ * cannot be determined, or no CSS files are mapped to the active route.
+ */
+function buildRouteCssLinks(
+  manifest: CssManifest | undefined,
+  instance: EmberApplicationInstance | undefined,
+): string {
+  if (!manifest || !instance) return '';
+
+  const routeName = getActiveRouteName(instance);
+  if (!routeName) return '';
+
+  // Collect CSS files for the active route and all its parents
+  const routes = expandRouteHierarchy(routeName);
+  const seen = new Set<string>();
+  const links: string[] = [];
+
+  for (const route of routes) {
+    const cssFiles = manifest[route];
+    if (!cssFiles) continue;
+
+    for (const href of cssFiles) {
+      if (seen.has(href)) continue;
+      seen.add(href);
+      links.push(`<link rel="stylesheet" href="${href}">`);
+    }
+  }
+
+  return links.join('');
+}
+
 // ─── Core Rendering ──────────────────────────────────────────────────
 
 /**
@@ -371,7 +487,13 @@ function serializeShoebox(entries: ShoeboxEntry[]): string {
 export async function renderEmberApp(
   options: RenderOptions,
 ): Promise<RenderResult> {
-  const { url, createApp, shoebox = false, rehydrate = false } = options;
+  const {
+    url,
+    createApp,
+    shoebox = false,
+    rehydrate = false,
+    cssManifest,
+  } = options;
 
   const window = createSSRWindow(url);
   const document = window.document;
@@ -380,6 +502,7 @@ export async function renderEmberApp(
   let instance: EmberApplicationInstance | undefined;
   let error: Error | undefined;
   let shoeboxEntries: ShoeboxEntry[] = [];
+  let cssLinks = '';
 
   // Set up the fetch interceptor before rendering (if shoebox is enabled)
   const interceptor = shoebox ? createFetchInterceptor() : null;
@@ -405,6 +528,14 @@ export async function renderEmberApp(
         };
 
         instance = await app.visit(url, bootOptions);
+
+        // After visit() completes, the router has resolved the URL to
+        // a route name. Query it to determine which CSS files to inject.
+        // This must happen inside withBrowserGlobals while the instance
+        // is still alive and the router service is accessible.
+        if (cssManifest) {
+          cssLinks = buildRouteCssLinks(cssManifest, instance);
+        }
       } finally {
         // Always restore original fetch, even if rendering fails
         interceptor?.restore();
@@ -434,8 +565,9 @@ export async function renderEmberApp(
     ? '<script>window.__vite_ember_ssr_rehydrate__=true</script>'
     : '';
 
-  // Prepend shoebox and rehydrate flag to head content so they're available early
-  const fullHead = rehydrateHTML + shoeboxHTML + head;
+  // Prepend CSS links, rehydrate flag, and shoebox to head content.
+  // CSS links come first so stylesheets begin loading immediately.
+  const fullHead = cssLinks + rehydrateHTML + shoeboxHTML + head;
 
   // In cleanup mode (default), wrap body in boundary markers so the
   // client's cleanupSSRContent() can identify and remove SSR content
@@ -557,4 +689,53 @@ export async function render(
     statusCode: result.statusCode,
     error: result.error,
   };
+}
+
+// ─── CSS Manifest Loading ────────────────────────────────────────────
+
+// Re-export for convenience so consumers don't need a separate import
+// from 'vite-ember-ssr/vite-plugin' just for these constants.
+export type { CssManifest } from './vite-plugin.js';
+export { CSS_MANIFEST_FILENAME } from './vite-plugin.js';
+
+/**
+ * Loads the CSS manifest from the client build output directory.
+ *
+ * The CSS manifest is generated by the `emberSsr()` Vite plugin during
+ * the client build. It maps Ember route names to their CSS asset paths.
+ *
+ * Returns `undefined` if the manifest file doesn't exist (i.e., the app
+ * has no lazy-loaded CSS assets).
+ *
+ * @example
+ * ```js
+ * import { loadCssManifest, render } from 'vite-ember-ssr/server';
+ *
+ * const cssManifest = await loadCssManifest('dist/client');
+ *
+ * app.get('*', async (req, reply) => {
+ *   const { html, statusCode } = await render({
+ *     url: req.url,
+ *     template,
+ *     createApp,
+ *     cssManifest,
+ *   });
+ *   reply.code(statusCode).type('text/html').send(html);
+ * });
+ * ```
+ */
+export async function loadCssManifest(
+  clientDir: string,
+): Promise<CssManifest | undefined> {
+  const { readFile } = await import('node:fs/promises');
+  const { join } = await import('node:path');
+  const { CSS_MANIFEST_FILENAME: filename } = await import('./vite-plugin.js');
+
+  try {
+    const raw = await readFile(join(clientDir, filename), 'utf-8');
+    return JSON.parse(raw) as CssManifest;
+  } catch {
+    // No manifest file — app has no lazy-loaded CSS
+    return undefined;
+  }
 }

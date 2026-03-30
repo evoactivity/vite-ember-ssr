@@ -1,10 +1,12 @@
-import { describe, it, expect } from 'vitest';
+import { describe, it, expect, beforeAll } from 'vitest';
 import { resolve } from 'node:path';
 import { readFile, access } from 'node:fs/promises';
 import { fileURLToPath } from 'node:url';
 
 const __dirname = fileURLToPath(new URL('.', import.meta.url));
 const lazyDist = resolve(__dirname, '../../test-app-lazy-ssg/dist');
+
+let cssManifest;
 
 /**
  * Helper: read a prerendered HTML file from the lazy SSG dist output.
@@ -28,6 +30,11 @@ async function fileExists(filePath) {
     return false;
   }
 }
+
+beforeAll(async () => {
+  const raw = await readFile(resolve(lazyDist, 'css-manifest.json'), 'utf-8');
+  cssManifest = JSON.parse(raw);
+});
 
 // ─── File structure ──────────────────────────────────────────────────
 
@@ -183,7 +190,7 @@ describe('Lazy SSG about route (lazy-loaded)', () => {
     const html = await readLazyHtml('about');
 
     expect(html).toContain('data-route="about"');
-    expect(html).toContain('<h1>About</h1>');
+    expect(html).toMatch(/<h1>About\s/);
     expect(html).toContain('HappyDOM');
   });
 
@@ -193,6 +200,13 @@ describe('Lazy SSG about route (lazy-loaded)', () => {
     expect(html).toContain('data-component="counter-display"');
     expect(html).toContain('data-count="0"');
     expect(html).toContain('data-status="zero"');
+  });
+
+  it('renders AboutInfo component (has own CSS)', async () => {
+    const html = await readLazyHtml('about');
+
+    expect(html).toContain('data-component="about-info"');
+    expect(html).toContain('About Info Component');
   });
 
   it('does not render ItemList component', async () => {
@@ -223,7 +237,7 @@ describe('Lazy SSG contact route (lazy-loaded)', () => {
     const html = await readLazyHtml('contact');
 
     expect(html).toContain('data-route="contact"');
-    expect(html).toContain('<h1>Contact</h1>');
+    expect(html).toMatch(/<h1>Contact\s/);
     expect(html).toContain('test@example.com');
     expect(html).toContain('GitHub: vite-ember-ssr');
   });
@@ -233,6 +247,13 @@ describe('Lazy SSG contact route (lazy-loaded)', () => {
 
     expect(html).not.toContain('data-component="counter-display"');
     expect(html).not.toContain('data-component="item-list"');
+    expect(html).not.toContain('data-component="about-info"');
+  });
+
+  it('renders SharedBadge component', async () => {
+    const html = await readLazyHtml('contact');
+
+    expect(html).toContain('data-component="shared-badge"');
   });
 
   it('marks the Contact link as active', async () => {
@@ -325,5 +346,185 @@ describe('Lazy SSG no shoebox', () => {
       const html = await readLazyHtml(route);
       expect(html).not.toContain('id="vite-ember-ssr-shoebox"');
     }
+  });
+});
+
+// ─── CSS manifest and lazy CSS injection ─────────────────────────────
+
+describe('Lazy SSG CSS manifest', () => {
+  it('generates a css-manifest.json in the dist output', async () => {
+    const exists = await fileExists(resolve(lazyDist, 'css-manifest.json'));
+    expect(exists).toBe(true);
+  });
+
+  it('manifest contains the about route with CSS files', () => {
+    expect(cssManifest).toHaveProperty('about');
+    expect(cssManifest.about).toBeInstanceOf(Array);
+    expect(cssManifest.about.length).toBeGreaterThan(0);
+  });
+
+  it('manifest contains the contact route with shared component CSS', () => {
+    // contact.gts imports SharedBadge which has its own CSS
+    expect(cssManifest).toHaveProperty('contact');
+    expect(cssManifest.contact).toBeInstanceOf(Array);
+    expect(cssManifest.contact.length).toBeGreaterThan(0);
+  });
+
+  it('manifest does not contain the index route (eager)', () => {
+    expect(cssManifest).not.toHaveProperty('index');
+  });
+
+  it('about route has both its own CSS and shared component CSS', () => {
+    // about.gts has: direct about.css + about-info.css (transitive) + shared-badge.css (shared)
+    // Vite merges about.css + about-info.css into one chunk, shared-badge.css is separate
+    expect(cssManifest.about.length).toBe(2);
+    expect(cssManifest.about).toEqual(
+      expect.arrayContaining([
+        expect.stringMatching(/\/assets\/about-[a-zA-Z0-9_-]+\.css$/),
+        expect.stringMatching(/\/assets\/shared-badge-[a-zA-Z0-9_-]+\.css$/),
+      ]),
+    );
+  });
+
+  it('contact route has only shared component CSS', () => {
+    // contact.gts only imports SharedBadge (no direct CSS import)
+    expect(cssManifest.contact.length).toBe(1);
+    expect(cssManifest.contact[0]).toMatch(
+      /\/assets\/shared-badge-[a-zA-Z0-9_-]+\.css$/,
+    );
+  });
+
+  it('shared component CSS path is the same in both routes', () => {
+    // The shared-badge CSS should be deduplicated into a single file
+    const aboutSharedCss = cssManifest.about.find((p) =>
+      p.includes('shared-badge'),
+    );
+    const contactSharedCss = cssManifest.contact.find((p) =>
+      p.includes('shared-badge'),
+    );
+    expect(aboutSharedCss).toBeDefined();
+    expect(contactSharedCss).toBeDefined();
+    expect(aboutSharedCss).toBe(contactSharedCss);
+  });
+});
+
+describe('Lazy SSG CSS link injection in prerendered HTML', () => {
+  it('injects <link> tags for about route CSS (own + shared) in the about page', async () => {
+    const html = await readLazyHtml('about');
+
+    expect(html).toMatch(
+      /<link rel="stylesheet" href="\/assets\/about-[a-zA-Z0-9_-]+\.css">/,
+    );
+    expect(html).toMatch(
+      /<link rel="stylesheet" href="\/assets\/shared-badge-[a-zA-Z0-9_-]+\.css">/,
+    );
+  });
+
+  it('injects <link> tag for shared component CSS on the contact page', async () => {
+    const html = await readLazyHtml('contact');
+
+    expect(html).toMatch(
+      /<link rel="stylesheet" href="\/assets\/shared-badge-[a-zA-Z0-9_-]+\.css">/,
+    );
+    // Contact should NOT have the about-specific CSS
+    expect(html).not.toMatch(
+      /<link rel="stylesheet" href="\/assets\/about-[a-zA-Z0-9_-]+\.css">/,
+    );
+  });
+
+  it('does NOT inject lazy CSS <link> on the index page (eager route)', async () => {
+    const html = await readLazyHtml('index');
+
+    expect(html).not.toMatch(
+      /<link rel="stylesheet" href="\/assets\/about-[a-zA-Z0-9_-]+\.css">/,
+    );
+    expect(html).not.toMatch(
+      /<link rel="stylesheet" href="\/assets\/shared-badge-[a-zA-Z0-9_-]+\.css">/,
+    );
+  });
+
+  it('CSS links appear in the <head> section of the about page', async () => {
+    const html = await readLazyHtml('about');
+
+    // Extract the <head> content
+    const headMatch = html.match(/<head[^>]*>([\s\S]*?)<\/head>/);
+    expect(headMatch).not.toBeNull();
+
+    const headContent = headMatch[1];
+    expect(headContent).toMatch(
+      /<link rel="stylesheet" href="\/assets\/about-[a-zA-Z0-9_-]+\.css">/,
+    );
+    expect(headContent).toMatch(
+      /<link rel="stylesheet" href="\/assets\/shared-badge-[a-zA-Z0-9_-]+\.css">/,
+    );
+  });
+
+  it('CSS links appear in the <head> section of the contact page', async () => {
+    const html = await readLazyHtml('contact');
+
+    const headMatch = html.match(/<head[^>]*>([\s\S]*?)<\/head>/);
+    expect(headMatch).not.toBeNull();
+
+    const headContent = headMatch[1];
+    expect(headContent).toMatch(
+      /<link rel="stylesheet" href="\/assets\/shared-badge-[a-zA-Z0-9_-]+\.css">/,
+    );
+  });
+});
+
+// ─── Transitive CSS (route → component → CSS) ──────────────────────
+
+describe('Lazy SSG transitive CSS injection (route → component → CSS)', () => {
+  it('renders the AboutInfo component on the about page', async () => {
+    const html = await readLazyHtml('about');
+
+    expect(html).toContain('data-component="about-info"');
+    expect(html).toContain('About Info Component');
+  });
+
+  it('does not render AboutInfo on the index page', async () => {
+    const html = await readLazyHtml('index');
+
+    expect(html).not.toContain('data-component="about-info"');
+  });
+
+  it('does not render AboutInfo on the contact page', async () => {
+    const html = await readLazyHtml('contact');
+
+    expect(html).not.toContain('data-component="about-info"');
+  });
+
+  it('the about-specific CSS bundle includes both direct and transitive CSS', async () => {
+    // The about route's own CSS file should contain styles from both:
+    // - about.css (direct import in about.gts)
+    // - about-info.css (transitive: about.gts → about-info.gts → about-info.css)
+    // Vite merges them into a single CSS asset for the dynamic entry chunk.
+    const aboutCssPath = cssManifest.about.find((p) => p.includes('/about-'));
+    expect(aboutCssPath).toBeDefined();
+
+    const cssContent = await readFile(
+      resolve(lazyDist, aboutCssPath.slice(1)),
+      'utf-8',
+    );
+
+    // From about.css (CSS minifier converts 'blue' to '#00f')
+    expect(cssContent).toMatch(/background:#00f|background:blue/);
+    // From about-info.css (transitive via component import)
+    expect(cssContent).toContain('.about-info');
+    expect(cssContent).toContain('.about-info__title');
+  });
+
+  it('shared-badge CSS is in a separate file (shared across routes)', async () => {
+    const sharedCssPath = cssManifest.about.find((p) =>
+      p.includes('shared-badge'),
+    );
+    expect(sharedCssPath).toBeDefined();
+
+    const cssContent = await readFile(
+      resolve(lazyDist, sharedCssPath.slice(1)),
+      'utf-8',
+    );
+
+    expect(cssContent).toContain('.shared-badge');
   });
 });

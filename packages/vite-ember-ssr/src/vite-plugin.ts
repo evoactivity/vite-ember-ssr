@@ -1,10 +1,199 @@
 import type { Plugin, PluginOption, ResolvedConfig, UserConfig } from 'vite';
 import { join, dirname } from 'node:path';
-import { mkdir, writeFile, readFile, rm, copyFile, access } from 'node:fs/promises';
+import {
+  mkdir,
+  writeFile,
+  readFile,
+  rm,
+  copyFile,
+  access,
+} from 'node:fs/promises';
 import { pathToFileURL } from 'node:url';
 
 export const SSR_HEAD_MARKER = '<!-- VITE_EMBER_SSR_HEAD -->';
 export const SSR_BODY_MARKER = '<!-- VITE_EMBER_SSR_BODY -->';
+
+/**
+ * Name of the CSS manifest file generated during the client build.
+ * Maps dynamic entry source modules to their associated CSS asset paths.
+ */
+export const CSS_MANIFEST_FILENAME = 'css-manifest.json';
+
+/**
+ * The CSS manifest maps Ember route names to the CSS files that Vite
+ * extracted from their lazy-loaded template chunks during the client build.
+ *
+ * Route names use Ember's dot-separated convention for nested routes:
+ * - `about` for `app/templates/about.gts`
+ * - `blog.post` for `app/templates/blog/post.gts`
+ *
+ * Example:
+ * ```json
+ * {
+ *   "about": ["/assets/about-VWk4xp3e.css"]
+ * }
+ * ```
+ *
+ * During SSR, the renderer queries the active route name from Ember's
+ * router service and looks up CSS files to inject as `<link>` tags.
+ */
+export type CssManifest = Record<string, string[]>;
+
+/**
+ * Derives an Ember route name from a source module path following
+ * Ember's conventional file layout.
+ *
+ * `app/templates/about.gts` → `about`
+ * `app/templates/blog/post.gts` → `blog.post`
+ * `app/templates/index.gts` → `index`
+ *
+ * Returns undefined if the path doesn't match the convention.
+ */
+function sourcePathToRouteName(
+  facadeModuleId: string,
+  root: string,
+): string | undefined {
+  // Make the path relative to the project root
+  let relativePath = facadeModuleId;
+  if (relativePath.startsWith(root)) {
+    relativePath = relativePath.slice(root.length);
+  }
+  // Strip leading slash
+  if (relativePath.startsWith('/')) {
+    relativePath = relativePath.slice(1);
+  }
+
+  // Match app/templates/<route-path>.<ext>
+  const match = relativePath.match(
+    /^app\/templates\/(.+)\.(gts|gjs|hbs|ts|js)$/,
+  );
+  if (!match) return undefined;
+
+  // Convert path separators to dots for nested routes
+  return match[1].replace(/\//g, '.');
+}
+
+/**
+ * Minimal type for a Rollup output chunk with Vite metadata.
+ * We define this locally to avoid a direct dependency on the 'rollup' package.
+ */
+interface OutputChunkWithMeta {
+  type: 'chunk';
+  isDynamicEntry: boolean;
+  isEntry: boolean;
+  facadeModuleId: string | null;
+  name: string;
+  fileName: string;
+  imports: string[];
+  viteMetadata?: {
+    importedCss?: Set<string>;
+  };
+}
+
+/**
+ * Walks the Rollup output bundle and collects CSS files associated
+ * with dynamic entry chunks. These are CSS imports that Vite extracted
+ * from code-split chunks (e.g., lazy-loaded route templates).
+ *
+ * The main entry's CSS is already linked in the HTML template by Vite,
+ * so we only collect CSS from `isDynamicEntry` chunks.
+ *
+ * When a component with CSS is shared across multiple lazy routes,
+ * Vite extracts the shared CSS into a separate chunk. We walk each
+ * dynamic entry's static `imports` graph to collect CSS from those
+ * shared chunks too, skipping the main entry chunk (whose CSS is
+ * already in the HTML template).
+ *
+ * Keys are Ember route names derived from the source file path using
+ * Ember's conventional `app/templates/` directory structure.
+ */
+function buildCssManifest(
+  bundle: Record<string, { type: string }>,
+  base: string,
+  root: string,
+): CssManifest {
+  const manifest: CssManifest = {};
+
+  // Build a lookup of fileName → chunk for walking the import graph.
+  const chunksByFile = new Map<string, OutputChunkWithMeta>();
+  const mainEntryFiles = new Set<string>();
+
+  for (const [, output] of Object.entries(bundle)) {
+    if (output.type !== 'chunk') continue;
+    const chunk = output as unknown as OutputChunkWithMeta;
+    chunksByFile.set(chunk.fileName, chunk);
+
+    // Track main entry chunks so we can exclude their CSS.
+    // Main entry CSS is already linked in the HTML template by Vite.
+    if (chunk.isEntry && !chunk.isDynamicEntry) {
+      mainEntryFiles.add(chunk.fileName);
+    }
+  }
+
+  /**
+   * Recursively collect all CSS from a chunk and its static imports,
+   * excluding main entry chunks (whose CSS is already in the template).
+   */
+  function collectCss(
+    fileName: string,
+    seen: Set<string>,
+    css: Set<string>,
+  ): void {
+    if (seen.has(fileName)) return;
+    seen.add(fileName);
+
+    // Don't collect CSS from the main entry — it's already in the HTML.
+    if (mainEntryFiles.has(fileName)) return;
+
+    const chunk = chunksByFile.get(fileName);
+    if (!chunk) return;
+
+    const importedCss = chunk.viteMetadata?.importedCss;
+    if (importedCss) {
+      for (const cssFile of importedCss) {
+        css.add(cssFile);
+      }
+    }
+
+    // Walk static imports (shared chunks extracted by Vite).
+    for (const imp of chunk.imports) {
+      collectCss(imp, seen, css);
+    }
+  }
+
+  for (const [, output] of Object.entries(bundle)) {
+    if (output.type !== 'chunk') continue;
+
+    const chunk = output as unknown as OutputChunkWithMeta;
+
+    // Only collect CSS from dynamic entries (code-split chunks).
+    if (!chunk.isDynamicEntry) continue;
+
+    // Collect CSS from this chunk and all its static imports.
+    const css = new Set<string>();
+    collectCss(chunk.fileName, new Set(), css);
+
+    if (css.size === 0) continue;
+
+    // Derive the Ember route name from the source module path.
+    // If the path doesn't match Ember conventions, fall back to
+    // the chunk name (e.g., 'about' from 'about-B5EiMzMx.js').
+    const routeName = chunk.facadeModuleId
+      ? (sourcePathToRouteName(chunk.facadeModuleId, root) ?? chunk.name)
+      : chunk.name;
+
+    if (!routeName) continue;
+
+    // Prefix CSS paths with the base URL so they work as href values.
+    const cssFiles = Array.from(css).map((c) => `${base}${c}`);
+
+    if (cssFiles.length > 0) {
+      manifest[routeName] = cssFiles;
+    }
+  }
+
+  return manifest;
+}
 
 /**
  * Default noExternal patterns for Ember ecosystem packages.
@@ -106,6 +295,29 @@ export function emberSsr(options: EmberSsrPluginOptions = {}): Plugin {
 
     configResolved(config) {
       resolvedConfig = config;
+    },
+
+    generateBundle(_outputOptions, bundle) {
+      // Only generate the CSS manifest for client builds.
+      // SSR builds strip CSS imports, so they have nothing to map.
+      if (resolvedConfig.build.ssr) return;
+
+      // Don't generate during the SSG child build (it's an SSR build)
+      if (process.env.__VITE_EMBER_SSG_CHILD__) return;
+
+      const base = resolvedConfig.base ?? '/';
+      const root = resolvedConfig.root;
+      const manifest = buildCssManifest(bundle, base, root);
+
+      // Only emit the manifest if there are dynamic entries with CSS.
+      // Apps without lazy-loaded CSS don't need this file.
+      if (Object.keys(manifest).length === 0) return;
+
+      this.emitFile({
+        type: 'asset',
+        fileName: CSS_MANIFEST_FILENAME,
+        source: JSON.stringify(manifest, null, 2),
+      });
     },
 
     async closeBundle() {
@@ -273,6 +485,30 @@ export function emberSsg(options: EmberSsgPluginOptions): Plugin {
       resolvedConfig = config;
     },
 
+    generateBundle(_outputOptions, bundle) {
+      // When combined with emberSsr, the SSR plugin already emits
+      // the CSS manifest — skip to avoid duplicate emission.
+      if (isCombined) return;
+
+      // Only generate the CSS manifest for client builds.
+      if (resolvedConfig.build.ssr) return;
+
+      // Don't generate during the SSG child build (it's an SSR build)
+      if (process.env.__VITE_EMBER_SSG_CHILD__) return;
+
+      const base = resolvedConfig.base ?? '/';
+      const root = resolvedConfig.root;
+      const manifest = buildCssManifest(bundle, base, root);
+
+      if (Object.keys(manifest).length === 0) return;
+
+      this.emitFile({
+        type: 'asset',
+        fileName: CSS_MANIFEST_FILENAME,
+        source: JSON.stringify(manifest, null, 2),
+      });
+    },
+
     async closeBundle() {
       // Don't prerender during SSR builds (if the user also has emberSsr)
       if (resolvedConfig.build.ssr) return;
@@ -300,6 +536,17 @@ export function emberSsg(options: EmberSsgPluginOptions): Plugin {
           `[vite-ember-ssg] Failed to read template at ${templatePath}.`,
         );
         throw e;
+      }
+
+      // Read the CSS manifest (if it exists) so we can inject
+      // lazy-loaded CSS into prerendered pages.
+      let cssManifest: CssManifest | undefined;
+      const cssManifestPath = join(clientDir, CSS_MANIFEST_FILENAME);
+      try {
+        const raw = await readFile(cssManifestPath, 'utf-8');
+        cssManifest = JSON.parse(raw) as CssManifest;
+      } catch {
+        // No CSS manifest — app has no lazy-loaded CSS
       }
 
       // When combined with emberSsr, preserve the original index.html
@@ -405,6 +652,7 @@ export function emberSsg(options: EmberSsgPluginOptions): Plugin {
               createApp,
               shoebox,
               rehydrate,
+              cssManifest,
             });
 
             if (result.error) {

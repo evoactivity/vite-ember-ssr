@@ -1,0 +1,10 @@
+.about-info {
+  border: 2px solid #333;
+  padding: 1rem;
+  margin: 1rem 0;
+}
+
+.about-info__title {
+  font-weight: bold;
+  color: darkblue;
+}

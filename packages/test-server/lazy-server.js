@@ -9,7 +9,7 @@ import Fastify from 'fastify';
 import { readFile } from 'node:fs/promises';
 import { resolve } from 'node:path';
 import { fileURLToPath } from 'node:url';
-import { render } from 'vite-ember-ssr/server';
+import { render, loadCssManifest } from 'vite-ember-ssr/server';
 
 const __dirname = fileURLToPath(new URL('.', import.meta.url));
 const port = parseInt(process.env.PORT ?? '4200', 10);
@@ -36,6 +36,10 @@ async function start() {
     resolve(testAppDist, 'client/index.html'),
     'utf-8',
   );
+
+  // Load the CSS manifest so lazy-loaded route CSS is injected during SSR.
+  // Returns undefined if no manifest exists (app has no lazy CSS).
+  const cssManifest = await loadCssManifest(resolve(testAppDist, 'client'));
 
   // Build an async createApp factory that lazily imports the SSR
   // bundle inside withBrowserGlobals where window exists.
@@ -71,6 +75,7 @@ async function start() {
         createApp,
         shoebox: false,
         rehydrate: false,
+        cssManifest,
       });
 
       if (error) app.log.error(error, 'SSR rendering error');
