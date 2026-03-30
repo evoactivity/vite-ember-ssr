@@ -87,7 +87,6 @@ import config from './config/environment.ts';
 import Router from './router.ts';
 
 class App extends EmberApp {
-  modulePrefix = config.modulePrefix;
   modules = {
     './router': Router,
     ...import.meta.glob('./{routes,templates}/**/*.{ts,gts}', { eager: true }),
