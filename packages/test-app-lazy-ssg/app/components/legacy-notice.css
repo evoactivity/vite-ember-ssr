@@ -1,0 +1,11 @@
+.legacy-notice {
+  border: 2px dashed darkred;
+  padding: 12px;
+  margin-top: 16px;
+  background: lightyellow;
+}
+
+.legacy-notice__title {
+  font-weight: bold;
+  color: darkred;
+}

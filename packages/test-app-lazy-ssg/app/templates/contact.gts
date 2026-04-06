@@ -1,4 +1,5 @@
 import SharedBadge from '../components/shared-badge.gts';
+import LegacyNotice from '../components/legacy-notice.gts';
 import 'nvp.ui';
 
 <template>
@@ -9,5 +10,7 @@ import 'nvp.ui';
       <li>Email: test@example.com</li>
       <li>GitHub: vite-ember-ssr</li>
     </ul>
+
+    <LegacyNotice />
   </main>
 </template>
