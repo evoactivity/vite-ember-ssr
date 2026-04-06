@@ -4,6 +4,7 @@
   "description": "SSR server for the test Ember application",
   "main": "index.js",
   "type": "module",
+  "private": true,
   "scripts": {
     "dev": "node index.js --dev",
     "start": "node index.js"
