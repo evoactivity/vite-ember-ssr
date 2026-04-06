@@ -23,7 +23,7 @@ window._embroiderRouteBundles_ = [];
  */
 export function bundle(
   name: string,
-  loader: () => Promise<{ default: unknown }>[]
+  loader: () => Promise<{ default: unknown }>[],
 ) {
   return {
     names: [name],

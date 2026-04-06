@@ -14,7 +14,7 @@ export default class App extends EmberApp {
         '!./templates/about.gts',
         '!./templates/contact.gts',
       ],
-      { eager: true }
+      { eager: true },
     ),
     ...import.meta.glob('./services/*.ts', { eager: true }),
     ...import.meta.glob('./controllers/*.ts', { eager: true }),
