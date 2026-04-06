@@ -2,8 +2,9 @@
  * Global setup for vitest — builds the library, test-app SSR bundle,
  * test-app-ssg static site, test-app-combined (SSR + SSG),
  * test-app-lazy-ssg (SSG with lazy routes),
- * test-app-lazy-ssr (SSR with lazy routes), and
- * test-app-monorepo-ssg (SSG with sibling workspace package)
+ * test-app-lazy-ssr (SSR with lazy routes),
+ * test-app-monorepo-ssg (SSG with sibling workspace package), and
+ * test-app-monorepo-ssr (SSR with sibling workspace package)
  * before any tests run.
  * This ensures tests always run against a fresh build.
  */
@@ -21,6 +22,10 @@ const testAppLazySsrRoot = resolve(__dirname, '../../test-app-lazy-ssr');
 const testAppMonorepoSsgRoot = resolve(
   __dirname,
   '../../test-app-monorepo-ssg',
+);
+const testAppMonorepoSsrRoot = resolve(
+  __dirname,
+  '../../test-app-monorepo-ssr',
 );
 
 export async function setup() {
@@ -45,22 +50,18 @@ export async function setup() {
   console.log(
     '  Building test-app-monorepo-ssg (SSG with sibling workspace package)...',
   );
-  try {
-    execSync('pnpm build', {
-      cwd: testAppMonorepoSsgRoot,
-      stdio: 'inherit',
-    });
-  } catch {
-    // Expected to fail until issue #4 is fixed:
-    // https://github.com/evoactivity/vite-ember-ssr/issues/4
-    //
-    // The SSG child build leaves monorepo-lib external, and when it
-    // tries to import @glimmer/tracking at runtime, pnpm's strict
-    // node_modules layout can't resolve it.
-    console.log(
-      '  ⚠ test-app-monorepo-ssg build failed (expected — see issue #4)\n',
-    );
-  }
+  execSync('pnpm build', {
+    cwd: testAppMonorepoSsgRoot,
+    stdio: 'inherit',
+  });
+
+  console.log(
+    '  Building test-app-monorepo-ssr (SSR with sibling workspace package)...',
+  );
+  execSync('pnpm build:all', {
+    cwd: testAppMonorepoSsrRoot,
+    stdio: 'inherit',
+  });
 
   console.log('  Build complete.\n');
 }

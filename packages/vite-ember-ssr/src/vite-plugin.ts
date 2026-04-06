@@ -196,19 +196,33 @@ function buildCssManifest(
 }
 
 /**
- * Default noExternal patterns for Ember ecosystem packages.
+ * Clears any user-specified `ssr.external` from the Vite config and
+ * returns `ssr: { noExternal: [/./] }` to bundle all dependencies.
  *
- * These packages must be processed through Vite's transform pipeline
- * (Babel, template compilation, etc.) rather than loaded as raw Node ESM.
+ * Ember's virtual packages (`@glimmer/tracking`, `@ember/*`, etc.) are
+ * provided by `ember-source` and not published as real npm packages.
+ * When Vite externalizes a dependency that transitively imports one of
+ * these virtual packages, Node's runtime module resolution fails under
+ * pnpm's strict `node_modules` layout.
+ *
+ * Bundling everything avoids this class of failure entirely. SSR bundles
+ * run server-side where bundle size is not a user-facing concern.
+ *
+ * In Vite, explicit `string[]` entries in `ssr.external` take precedence
+ * over `ssr.noExternal` patterns, so we must also delete any
+ * user-specified externals to ensure the `noExternal: [/./]` pattern
+ * actually applies.
+ *
+ * See: https://github.com/evoactivity/vite-ember-ssr/issues/4
  */
-const EMBER_SSR_NO_EXTERNAL: (RegExp | string)[] = [
-  /^@ember\//,
-  /^@glimmer\//,
-  /^@embroider\//,
-  /^@warp-drive\//,
-  /^ember-/,
-  'decorator-transforms',
-];
+function bundleAllDeps(userConfig: UserConfig): {
+  ssr: { noExternal: [RegExp] };
+} {
+  if (userConfig.ssr) {
+    delete userConfig.ssr.external;
+  }
+  return { ssr: { noExternal: [/./] } };
+}
 
 /**
  * Flatten and filter a Vite plugins array, which may contain nested arrays,
@@ -242,31 +256,13 @@ export interface EmberSsrPluginOptions {
  *
  * Handles all SSR-related Vite configuration automatically:
  *
- * - Injects `ssr.noExternal` for Ember ecosystem packages
+ * - Bundles all dependencies into SSR builds (`ssr.noExternal: [/./]`)
+ *   to avoid runtime resolution failures under pnpm's strict
+ *   node_modules layout (see issue #4)
  * - Sets build defaults: `dist/client` for client builds,
  *   `dist/server` with `target: 'node22'` for SSR builds
  * - Writes a `package.json` with `"type": "module"` to the SSR
  *   build output directory (needed for Node ESM compatibility)
- *
- * If your app imports third-party packages that contain bare CSS
- * imports (e.g. `import './styles.css'`), those packages must be
- * added to `ssr.noExternal` in your Vite config so that Vite bundles
- * them into the SSR output (where CSS imports are safely no-opped).
- * Without this, Node.js will attempt to load the `.css` files
- * directly and fail with `ERR_UNKNOWN_FILE_EXTENSION`.
- *
- * ```js
- * // vite.config.mjs
- * export default defineConfig({
- *   plugins: [emberSsr()],
- *   ssr: {
- *     noExternal: ['some-package-with-css'],
- *   },
- * });
- * ```
- *
- * Vite deep-merges your `ssr.noExternal` array with the Ember
- * ecosystem patterns this plugin provides automatically.
  */
 export function emberSsr(options: EmberSsrPluginOptions = {}): Plugin {
   let resolvedConfig: ResolvedConfig;
@@ -274,19 +270,27 @@ export function emberSsr(options: EmberSsrPluginOptions = {}): Plugin {
   return {
     name: 'vite-ember-ssr',
 
-    config(_userConfig, env): UserConfig {
-      const noExternal = [...EMBER_SSR_NO_EXTERNAL];
+    config(userConfig, env): UserConfig {
+      // Bundle all dependencies for SSR builds to avoid runtime failures
+      // under pnpm's strict node_modules layout when external packages
+      // transitively import virtual Ember/Glimmer packages (e.g.
+      // @glimmer/tracking) that only exist inside ember-source.
+      // This is safe to set unconditionally — ssr.noExternal is ignored
+      // for client builds, and SSR bundles run server-side where bundle
+      // size is not a user-facing concern.
+      // See: https://github.com/evoactivity/vite-ember-ssr/issues/4
+      const ssrConfig = bundleAllDeps(userConfig);
 
-      // During the SSG child build, only provide ssr.noExternal —
-      // don't override build.outDir or other build settings
-      // (the SSG plugin sets them explicitly via inline config).
+      // During the SSG child build, only set ssr config — don't
+      // override build.outDir (the SSG plugin sets it explicitly
+      // via inline config to a temp directory).
       if (process.env.__VITE_EMBER_SSG_CHILD__) {
-        return { ssr: { noExternal } };
+        return ssrConfig;
       }
 
       if (env.isSsrBuild) {
         return {
-          ssr: { noExternal },
+          ...ssrConfig,
           build: {
             outDir: options.serverOutDir ?? 'dist/server',
             target: 'node22',
@@ -297,7 +301,7 @@ export function emberSsr(options: EmberSsrPluginOptions = {}): Plugin {
       }
 
       return {
-        ssr: { noExternal },
+        ...ssrConfig,
         build: {
           outDir: options.clientOutDir ?? 'dist/client',
         },
@@ -423,29 +427,9 @@ export interface EmberSsgPluginOptions {
  * into the client output directory. The temporary SSR bundle is cleaned
  * up automatically.
  *
- * If your app imports third-party packages that contain bare CSS
- * imports (e.g. `import './styles.css'`), those packages must be
- * added to `ssr.noExternal` in your Vite config so that Vite bundles
- * them into the SSR output (where CSS imports are safely no-opped).
- * Without this, Node.js will attempt to load the `.css` files
- * directly and fail with `ERR_UNKNOWN_FILE_EXTENSION`.
- *
- * ```js
- * // vite.config.mjs
- * export default defineConfig({
- *   plugins: [
- *     emberSsg({
- *       routes: ['index', 'about', 'contact'],
- *     }),
- *   ],
- *   ssr: {
- *     noExternal: ['some-package-with-css'],
- *   },
- * });
- * ```
- *
- * Vite deep-merges your `ssr.noExternal` array with the Ember
- * ecosystem patterns this plugin provides automatically.
+ * All dependencies are bundled into the SSR output (no externals) to
+ * avoid runtime resolution failures under pnpm's strict node_modules
+ * layout. See issue #4.
  *
  * @example
  * ```js
@@ -483,12 +467,13 @@ export function emberSsg(options: EmberSsgPluginOptions): Plugin {
     name: 'vite-ember-ssg',
 
     config(userConfig): UserConfig {
-      const noExternal = [...EMBER_SSR_NO_EXTERNAL];
+      // Bundle all dependencies for SSR builds — see bundleAllDeps().
+      const ssrConfig = bundleAllDeps(userConfig);
 
-      // During the child SSR build, only provide ssr.noExternal —
-      // don't override build.outDir (the parent sets it explicitly).
+      // During the SSG child build, only set ssr config — don't touch
+      // build.outDir or detect isCombined (irrelevant for child build).
       if (process.env.__VITE_EMBER_SSG_CHILD__) {
-        return { ssr: { noExternal } };
+        return ssrConfig;
       }
 
       // Detect if emberSsr is also registered in this config.
@@ -504,7 +489,7 @@ export function emberSsg(options: EmberSsgPluginOptions): Plugin {
       const outDir = explicitOutDir ?? (isCombined ? undefined : 'dist');
 
       return {
-        ssr: { noExternal },
+        ...ssrConfig,
         ...(outDir != null ? { build: { outDir } } : {}),
       };
     },
@@ -607,7 +592,11 @@ export function emberSsg(options: EmberSsgPluginOptions): Plugin {
             sourcemap: false,
           },
           ssr: {
-            noExternal: [...EMBER_SSR_NO_EXTERNAL],
+            // Belt-and-suspenders: the config hooks already call
+            // bundleAllDeps() for the child build, but setting it here
+            // in inline config guarantees it even if the user's config
+            // file doesn't register the SSR/SSG plugins for some reason.
+            noExternal: [/./],
           },
         });
       } catch (e) {

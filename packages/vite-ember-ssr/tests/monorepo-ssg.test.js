@@ -15,8 +15,9 @@
  * the SSG child build, pnpm's strict node_modules layout can't resolve
  * it — reproducing the failure from issue #4.
  *
- * These tests are currently skipped because the build fails without a fix.
- * Remove the .skip once issue #4 is resolved.
+ * These tests verify that the fix for issue #4 works — the SSG child
+ * build now uses ssr.noExternal: [/./] to bundle everything, avoiding
+ * runtime resolution failures under pnpm's strict node_modules layout.
  */
 import { describe, it, expect } from 'vitest';
 import { resolve } from 'node:path';
@@ -51,7 +52,7 @@ async function fileExists(filePath) {
 
 // ─── File structure ──────────────────────────────────────────────────
 
-describe.skip('Monorepo SSG output file structure', () => {
+describe('Monorepo SSG output file structure', () => {
   it('generates index.html at the root', async () => {
     const exists = await fileExists(resolve(ssgDist, 'index.html'));
     expect(exists).toBe(true);
@@ -75,7 +76,7 @@ describe.skip('Monorepo SSG output file structure', () => {
 
 // ─── HTML structure ──────────────────────────────────────────────────
 
-describe.skip('Monorepo SSG HTML structure', () => {
+describe('Monorepo SSG HTML structure', () => {
   it('replaces SSR markers in all pages', async () => {
     for (const route of ['index', 'about']) {
       const html = await readSsgHtml(route);
@@ -106,7 +107,7 @@ describe.skip('Monorepo SSG HTML structure', () => {
 
 // ─── Sibling package import (the core of issue #4) ───────────────────
 
-describe.skip('Monorepo SSG sibling package import', () => {
+describe('Monorepo SSG sibling package import', () => {
   it('renders the MonorepoStatus component that imports from sibling package', async () => {
     const html = await readSsgHtml('index');
 
@@ -134,7 +135,7 @@ describe.skip('Monorepo SSG sibling package import', () => {
 
 // ─── Index route ─────────────────────────────────────────────────────
 
-describe.skip('Monorepo SSG index route', () => {
+describe('Monorepo SSG index route', () => {
   it('contains index-specific content', async () => {
     const html = await readSsgHtml('index');
 
@@ -167,7 +168,7 @@ describe.skip('Monorepo SSG index route', () => {
 
 // ─── About route ─────────────────────────────────────────────────────
 
-describe.skip('Monorepo SSG about route', () => {
+describe('Monorepo SSG about route', () => {
   it('contains about-specific content', async () => {
     const html = await readSsgHtml('about');
 
@@ -191,7 +192,7 @@ describe.skip('Monorepo SSG about route', () => {
 
 // ─── Route isolation ─────────────────────────────────────────────────
 
-describe.skip('Monorepo SSG route isolation', () => {
+describe('Monorepo SSG route isolation', () => {
   it('each page contains only its own data-route attribute', async () => {
     const index = await readSsgHtml('index');
     const about = await readSsgHtml('about');
