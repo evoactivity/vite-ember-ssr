@@ -1,25 +1,30 @@
 {
   "name": "vite-ember-ssr-monorepo",
   "version": "1.0.0",
-  "description": "",
-  "main": "index.js",
   "private": true,
+  "description": "",
+  "keywords": [],
+  "repository": {
+    "type": "git",
+    "url": "git@github.com:evoactivity/vite-ember-ssr.git"
+  },
+  "license": "MIT",
+  "author": "Liam Potter",
+  "type": "module",
+  "main": "index.js",
   "scripts": {
     "build": "pnpm --filter vite-ember-ssr build && pnpm --filter test-app build:all",
-    "dev": "pnpm --filter test-server dev",
-    "test": "pnpm --filter vite-ember-ssr test",
-    "test:browser": "pnpm --filter vite-ember-ssr test:browser",
-    "test:all": "pnpm --filter vite-ember-ssr test:all",
-    "demo": "pnpm build && pnpm --filter test-server start",
     "clean": "rm -rf packages/*/dist",
-    "format": "prettier --write ."
+    "demo": "pnpm build && pnpm --filter test-server start",
+    "dev": "pnpm --filter test-server dev",
+    "format": "prettier --write .",
+    "test": "pnpm --filter vite-ember-ssr test",
+    "test:all": "pnpm --filter vite-ember-ssr test:all",
+    "test:browser": "pnpm --filter vite-ember-ssr test:browser"
   },
-  "keywords": [],
-  "author": "Liam Potter",
-  "license": "MIT",
-  "packageManager": "pnpm@10.24.0",
-  "type": "module",
   "devDependencies": {
-    "prettier": "^3.8.1"
-  }
+    "prettier": "^3.8.1",
+    "release-plan": "^0.17.4"
+  },
+  "packageManager": "pnpm@10.24.0"
 }
