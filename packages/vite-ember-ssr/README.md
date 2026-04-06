@@ -476,7 +476,12 @@ import { shouldRehydrate } from 'vite-ember-ssr/client';
 if (shouldRehydrate()) {
   const app = Application.create({ ...config.APP, autoboot: false });
 
-  app.visit(window.location.pathname + window.location.search, {
+  const url = (window.location.pathname + window.location.search).replace(
+    config.rootURL,
+    '/',
+  );
+
+  void app.visit(url, {
     _renderMode: 'rehydrate',
   });
   return;
@@ -543,7 +548,12 @@ installShoebox();
 if (shouldRehydrate()) {
   const app = Application.create({ ...config.APP, autoboot: false });
 
-  app.visit(window.location.pathname + window.location.search, {
+  const url = (window.location.pathname + window.location.search).replace(
+    config.rootURL,
+    '/',
+  );
+
+  void app.visit(url, {
     _renderMode: 'rehydrate',
   });
   return;
