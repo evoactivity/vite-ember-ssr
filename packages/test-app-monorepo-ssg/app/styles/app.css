@@ -1,0 +1,43 @@
+/* Minimal styles for the monorepo SSG test app */
+
+*,
+*::before,
+*::after {
+  box-sizing: border-box;
+  margin: 0;
+  padding: 0;
+}
+
+html {
+  font-family: system-ui, sans-serif;
+  line-height: 1.6;
+}
+
+nav[data-component='navigation'] {
+  display: flex;
+  gap: 0.5rem;
+  padding: 0.75rem 1.5rem;
+  background: #1a1a2e;
+}
+
+nav[data-component='navigation'] a {
+  color: #a3a3c2;
+  text-decoration: none;
+  padding: 0.4rem 0.85rem;
+  border-radius: 6px;
+}
+
+nav[data-component='navigation'] a.active {
+  color: #fff;
+  background: #e94560;
+}
+
+main {
+  max-width: 52rem;
+  margin: 0 auto;
+  padding: 2rem 1.5rem;
+}
+
+h1 {
+  margin-bottom: 0.75rem;
+}

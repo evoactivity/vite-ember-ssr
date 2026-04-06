@@ -1,0 +1,15 @@
+{
+  "name": "monorepo-lib",
+  "version": "0.0.0",
+  "private": true,
+  "description": "Sibling workspace package that imports @glimmer/tracking via ember-source — used to test pnpm monorepo SSG builds",
+  "license": "MIT",
+  "type": "module",
+  "exports": {
+    ".": "./src/index.js",
+    "./*": "./src/*"
+  },
+  "dependencies": {
+    "ember-source": "~6.11.0"
+  }
+}
