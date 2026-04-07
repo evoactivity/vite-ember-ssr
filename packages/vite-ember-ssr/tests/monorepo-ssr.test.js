@@ -27,13 +27,7 @@ const testAppDist = resolve(__dirname, '../../test-app-monorepo-ssr/dist');
 
 let template;
 
-// Async createApp factory — lazily imports the SSR bundle inside
-// withBrowserGlobals where window exists.
-const serverEntryPath = resolve(testAppDist, 'server/app-ssr.mjs');
-const createApp = async () => {
-  const appModule = await import(serverEntryPath);
-  return appModule.createSsrApp();
-};
+const ssrBundlePath = resolve(testAppDist, 'server/app-ssr.mjs');
 
 beforeAll(async () => {
   template = await readFile(resolve(testAppDist, 'client/index.html'), 'utf-8');
@@ -45,7 +39,7 @@ beforeAll(async () => {
 async function renderRoute(url) {
   const rendered = await renderEmberApp({
     url,
-    createApp,
+    ssrBundlePath,
   });
   const html = assembleHTML(template, rendered);
   return { html, rendered };
@@ -99,7 +93,8 @@ describe('Monorepo SSR bundle import', () => {
     // This is the core test: if monorepo-lib were left external,
     // this import would fail with:
     //   Cannot find package '@glimmer/tracking' imported from monorepo-lib/src/index.js
-    const appModule = await import(serverEntryPath);
+    const { pathToFileURL } = await import('node:url');
+    const appModule = await import(pathToFileURL(ssrBundlePath).href);
     expect(typeof appModule.createSsrApp).toBe('function');
   });
 

@@ -9,13 +9,7 @@ const testAppDist = resolve(__dirname, '../../test-app/dist');
 
 let template;
 
-// Async createApp factory — lazily imports the SSR bundle inside
-// withBrowserGlobals where window exists.
-const serverEntryPath = resolve(testAppDist, 'server/app-ssr.mjs');
-const createApp = async () => {
-  const appModule = await import(serverEntryPath);
-  return appModule.createSsrApp();
-};
+const ssrBundlePath = resolve(testAppDist, 'server/app-ssr.mjs');
 
 beforeAll(async () => {
   template = await readFile(resolve(testAppDist, 'client/index.html'), 'utf-8');
@@ -27,7 +21,7 @@ beforeAll(async () => {
 async function renderRoute(url, options = {}) {
   const rendered = await renderEmberApp({
     url,
-    createApp,
+    ssrBundlePath,
     ...options,
   });
   const html = assembleHTML(template, rendered);

@@ -14,14 +14,7 @@ const testAppDist = resolve(__dirname, '../../test-app-lazy-ssr/dist');
 let template;
 let cssManifest;
 
-// Async createApp factory — lazily imports the SSR bundle inside
-// withBrowserGlobals where window exists. This is the key pattern
-// for apps using @embroider/router lazy routes.
-const serverEntryPath = resolve(testAppDist, 'server/app-ssr.mjs');
-const createApp = async () => {
-  const appModule = await import(serverEntryPath);
-  return appModule.createSsrApp();
-};
+const ssrBundlePath = resolve(testAppDist, 'server/app-ssr.mjs');
 
 beforeAll(async () => {
   template = await readFile(resolve(testAppDist, 'client/index.html'), 'utf-8');
@@ -34,7 +27,7 @@ beforeAll(async () => {
 async function renderRoute(url, options = {}) {
   const rendered = await renderEmberApp({
     url,
-    createApp,
+    ssrBundlePath,
     cssManifest,
     ...options,
   });
@@ -406,7 +399,7 @@ describe('Lazy SSR CSS link injection', () => {
     // Render without passing cssManifest
     const rendered = await renderEmberApp({
       url: '/about',
-      createApp,
+      ssrBundlePath,
     });
     const html = assembleHTML(template, rendered);
 

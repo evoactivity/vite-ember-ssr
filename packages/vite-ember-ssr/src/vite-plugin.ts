@@ -635,30 +635,9 @@ export function emberSsg(options: EmberSsgPluginOptions): Plugin {
         }
         const ssrBundleURL = pathToFileURL(ssrBundlePath).href;
 
-        // Build an async createApp factory that lazily imports the SSR
-        // bundle. The import() happens inside withBrowserGlobals (via
-        // render → renderEmberApp) so browser globals like `window`
-        // exist when module-level code runs. This is required for apps
-        // using @embroider/router lazy routes, whose route-splitting.ts
-        // assigns `window._embroiderRouteBundles_` at module scope.
-        //
-        // ES module import() caches by URL, so the bundle is only
-        // loaded once — subsequent calls return the cached module.
-        const createApp = async () => {
-          const ssrModule = await import(ssrBundleURL);
-          const createSsrApp = ssrModule.createSsrApp;
-
-          if (typeof createSsrApp !== 'function') {
-            throw new Error(
-              `SSR entry '${ssrEntry}' does not export a 'createSsrApp' function. ` +
-                `Found exports: ${Object.keys(ssrModule).join(', ')}`,
-            );
-          }
-
-          return createSsrApp();
-        };
-
-        // Prerender each route
+        // Prerender each route — each render runs in a fresh Worker thread,
+        // so the SSR bundle is imported clean every time with no shared
+        // prototype-patch or module-level singleton state across renders.
         for (const route of routes) {
           const url = route === 'index' ? '/' : `/${route}`;
 
@@ -666,7 +645,7 @@ export function emberSsg(options: EmberSsgPluginOptions): Plugin {
             const result = await render({
               url,
               template,
-              createApp,
+              ssrBundlePath: ssrBundleURL,
               shoebox,
               rehydrate,
               cssManifest,
@@ -674,8 +653,8 @@ export function emberSsg(options: EmberSsgPluginOptions): Plugin {
 
             if (result.error) {
               console.error(
-                `  [vite-ember-ssg] Error rendering ${url}:`,
-                result.error.message,
+                `  [vite-ember-ssg] Error rendering ${url}:\n` +
+                  (result.error.stack ?? result.error.message),
               );
               errorCount++;
               continue;
@@ -698,8 +677,8 @@ export function emberSsg(options: EmberSsgPluginOptions): Plugin {
             successCount++;
           } catch (e) {
             console.error(
-              `  [vite-ember-ssg] Failed to prerender ${url}:`,
-              e instanceof Error ? e.message : e,
+              `  [vite-ember-ssg] Failed to prerender ${url}:\n` +
+                (e instanceof Error ? (e.stack ?? e.message) : String(e)),
             );
             errorCount++;
           }

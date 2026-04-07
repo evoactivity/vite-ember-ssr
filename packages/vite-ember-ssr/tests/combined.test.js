@@ -1,7 +1,7 @@
 import { describe, it, expect } from 'vitest';
 import { resolve } from 'node:path';
 import { readFile, access } from 'node:fs/promises';
-import { fileURLToPath, pathToFileURL } from 'node:url';
+import { fileURLToPath } from 'node:url';
 
 const __dirname = fileURLToPath(new URL('.', import.meta.url));
 const combinedDist = resolve(__dirname, '../../test-app-combined/dist');
@@ -252,6 +252,7 @@ describe('Combined mode: route isolation', () => {
 describe('Combined mode: SSR server bundle', () => {
   it('exports a createSsrApp function', async () => {
     const bundlePath = resolve(serverDir, 'app-ssr.mjs');
+    const { pathToFileURL } = await import('node:url');
     const ssrModule = await import(pathToFileURL(bundlePath).href);
     expect(typeof ssrModule.createSsrApp).toBe('function');
   });
@@ -270,10 +271,7 @@ describe('Combined mode: SSR server bundle', () => {
     const result = await render({
       url: '/pokemon-fetch',
       template,
-      createApp: async () => {
-        const { createSsrApp } = await import(pathToFileURL(bundlePath).href);
-        return createSsrApp();
-      },
+      ssrBundlePath: bundlePath,
       shoebox: true,
     });
 
@@ -295,10 +293,7 @@ describe('Combined mode: SSR server bundle', () => {
     const result = await render({
       url: '/about',
       template,
-      createApp: async () => {
-        const { createSsrApp } = await import(pathToFileURL(bundlePath).href);
-        return createSsrApp();
-      },
+      ssrBundlePath: bundlePath,
       shoebox: true,
     });
 
