@@ -1,28 +1,19 @@
 /**
- * EXPERIMENT: long-lived-window
+ * SSR worker — long-lived Window per thread.
  *
- * Models an SSR worker the same way a browser tab works: one Window,
- * one EmberApplication, running forever. Every render is a bare
- * `app.visit(url)` — no Window construction, no globalThis mutation,
- * no DOM reset between requests.
+ * One Window is created at worker startup and lives for the worker's lifetime.
+ * One EmberApplication is created eagerly (top-level await) and reused for
+ * every render. Renders are serialised by tinypool (concurrentTasksPerWorker:1),
+ * so there is no concurrency concern within a single worker.
  *
- * Hypothesis: the per-render Window construction + installGlobals() is
- * a measurable cost that can be eliminated when renders are fully
- * sequential within a single worker (tinypool serialises tasks per thread).
+ * app.visit() fully owns document.head/body between calls, so DOM state does
+ * not bleed across renders. A fresh ApplicationInstance is created per visit
+ * and destroyed after the DOM is read, keeping container singletons clean.
  *
- * Caveats / known risks:
- *  - document accumulates state across renders (head/body from previous
- *    visit may still be present unless Ember clears them itself).
- *  - globalThis.location will always point at the initial URL unless
- *    Ember's visit() mutates it in place — which it does via the
- *    location service.
- *  - Shoebox: fetch interceptor installs/restores around each visit,
- *    same as before. No isolation concern there.
- *  - CSS manifest: same lookup logic, no change.
- *
- * If Ember's visit() fully owns the document lifecycle (clearing and
- * re-rendering head/body) this should work. If it accumulates state,
- * the rendered HTML will be wrong and tests will catch it.
+ * The shoebox fetch interceptor is installed once at startup. Each render
+ * assigns a fresh entries Map before visiting, so entries never bleed between
+ * requests. When shoebox is disabled, the Map is set to null and the
+ * interceptor is a no-op passthrough.
  */
 
 import { Window } from 'happy-dom';
@@ -96,11 +87,6 @@ function installGlobals(win: Window): void {
 }
 
 // ─── Eager startup: single long-lived Window + app ────────────────────
-//
-// One Window is created at worker startup and lives forever.
-// globalThis is set once. The EmberApplication is created once.
-// Renders are serialised by tinypool (one task at a time per thread),
-// so there is no concurrency concern within a single worker.
 
 const win = new Window({
   url: 'http://localhost/',
@@ -139,15 +125,17 @@ const app: EmberApplication = startupMod.createSsrApp();
 
 const SHOEBOX_SCRIPT_ID = 'vite-ember-ssr-shoebox';
 
-function createFetchInterceptor() {
-  const entries = new Map<string, ShoeboxEntry>();
-  const originalFetch = globalThis.fetch;
+// The fetch interceptor is installed once at startup. globalThis.fetch
+// never changes. Each render passes a fresh entries Map so there is no
+// bleed between requests.
+const realFetch = globalThis.fetch;
+let shoeboxEntries: Map<string, ShoeboxEntry> | null = null;
 
-  const interceptedFetch: typeof fetch = async (input, init) => {
-    const request = new Request(input, init);
-    if (request.method.toUpperCase() !== 'GET')
-      return originalFetch(input, init);
-    const response = await originalFetch(input, init);
+const interceptedFetch: typeof fetch = async (input, init) => {
+  const request = new Request(input, init);
+  if (request.method.toUpperCase() !== 'GET') return realFetch(input, init);
+  const response = await realFetch(input, init);
+  if (shoeboxEntries) {
     try {
       const clone = response.clone();
       const body = await clone.text();
@@ -155,7 +143,7 @@ function createFetchInterceptor() {
       clone.headers.forEach((v, k) => {
         headers[k] = v;
       });
-      entries.set(request.url, {
+      shoeboxEntries.set(request.url, {
         url: request.url,
         status: clone.status,
         statusText: clone.statusText,
@@ -165,21 +153,12 @@ function createFetchInterceptor() {
     } catch {
       /* skip */
     }
-    return response;
-  };
+  }
+  return response;
+};
 
-  return {
-    install() {
-      globalThis.fetch = interceptedFetch;
-    },
-    restore() {
-      globalThis.fetch = originalFetch;
-    },
-    getEntries(): ShoeboxEntry[] {
-      return Array.from(entries.values());
-    },
-  };
-}
+// Install once — never needs to be restored.
+globalThis.fetch = interceptedFetch;
 
 function serializeShoebox(entries: ShoeboxEntry[]): string {
   if (entries.length === 0) return '';
@@ -235,7 +214,9 @@ export default async function render(
   // Use the long-lived document directly — no new Window, no globalThis swap.
   const document = win.document;
 
-  const interceptor = shoebox ? createFetchInterceptor() : null;
+  // Give the interceptor a fresh Map for this render, or null if shoebox
+  // is disabled, so entries never bleed between requests.
+  shoeboxEntries = shoebox ? new Map() : null;
 
   let head = '';
   let body = '';
@@ -243,41 +224,36 @@ export default async function render(
   let error: Error | undefined;
 
   try {
-    try {
-      interceptor?.install();
+    const bootOptions: BootOptions = {
+      isBrowser: false,
+      document: document as unknown as Document,
+      rootElement: document.body as unknown as Element,
+      shouldRender: true,
+      ...(rehydrate ? { _renderMode: 'serialize' as const } : {}),
+    };
 
-      const bootOptions: BootOptions = {
-        isBrowser: false,
-        document: document as unknown as Document,
-        rootElement: document.body as unknown as Element,
-        shouldRender: true,
-        ...(rehydrate ? { _renderMode: 'serialize' as const } : {}),
-      };
+    const instance = await app.visit(url, bootOptions);
 
-      const instance = await app.visit(url, bootOptions);
+    // Drain Backburner's autorun microtask before reading the DOM.
+    await new Promise<void>((resolve) => setTimeout(resolve, 0));
 
-      // Drain Backburner's autorun microtask before reading the DOM.
-      await new Promise<void>((resolve) => setTimeout(resolve, 0));
+    if (cssManifest) cssLinks = buildRouteCssLinks(cssManifest, instance);
+    head = document.head?.innerHTML ?? '';
+    body = document.body?.innerHTML ?? '';
 
-      if (cssManifest) cssLinks = buildRouteCssLinks(cssManifest, instance);
-      head = document.head?.innerHTML ?? '';
-      body = document.body?.innerHTML ?? '';
-
-      // Destroy the instance so its container is torn down cleanly.
-      // app.visit() creates a fresh ApplicationInstance per call; without
-      // destroying it the container's singletons (including location:none)
-      // remain live and can corrupt the next visit.
-      instance.destroy();
-    } finally {
-      interceptor?.restore();
-    }
+    // Destroy the instance so its container is torn down cleanly.
+    // app.visit() creates a fresh ApplicationInstance per call; without
+    // destroying it the container's singletons (including location:none)
+    // remain live and can corrupt the next visit.
+    instance.destroy();
   } catch (e) {
     error = e instanceof Error ? e : new Error(String(e));
   }
 
-  const shoeboxHTML = interceptor
-    ? serializeShoebox(interceptor.getEntries())
-    : '';
+  const shoeboxHTML =
+    shoeboxEntries && shoeboxEntries.size > 0
+      ? serializeShoebox(Array.from(shoeboxEntries.values()))
+      : '';
   const rehydrateHTML = rehydrate
     ? '<script>window.__vite_ember_ssr_rehydrate__=true</script>'
     : '';
