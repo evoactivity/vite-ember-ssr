@@ -9,6 +9,7 @@ import {
   access,
 } from 'node:fs/promises';
 import { pathToFileURL } from 'node:url';
+import { cpus } from 'node:os';
 
 export const SSR_HEAD_MARKER = '<!-- VITE_EMBER_SSR_HEAD -->';
 export const SSR_BODY_MARKER = '<!-- VITE_EMBER_SSR_BODY -->';
@@ -531,7 +532,7 @@ export function emberSsg(options: EmberSsgPluginOptions): Plugin {
       if (process.env.__VITE_EMBER_SSG_CHILD__) return;
 
       const { build: viteBuild } = await import('vite');
-      const { render } = await import('./server.js');
+      const { assembleHTML, createEmberApp } = await import('./server.js');
 
       const root = resolvedConfig.root;
       const clientDir = join(root, resolvedConfig.build.outDir);
@@ -635,53 +636,62 @@ export function emberSsg(options: EmberSsgPluginOptions): Plugin {
         }
         const ssrBundleURL = pathToFileURL(ssrBundlePath).href;
 
-        // Prerender each route — each render runs in a fresh Worker thread,
-        // so the SSR bundle is imported clean every time with no shared
-        // prototype-patch or module-level singleton state across renders.
-        for (const route of routes) {
-          const url = route === 'index' ? '/' : `/${route}`;
+        // Prerender all routes in parallel using a long-lived worker pool.
+        // Workers import the SSR bundle once and reuse it across renders,
+        // making per-render cost ~4ms vs ~200ms for a fresh-worker approach.
+        const app = await createEmberApp(ssrBundleURL, {
+          workers: cpus().length,
+        });
 
-          try {
-            const result = await render({
-              url,
-              template,
-              ssrBundlePath: ssrBundleURL,
-              shoebox,
-              rehydrate,
-              cssManifest,
-            });
+        try {
+          await Promise.all(
+            routes.map(async (route) => {
+              const url = route === 'index' ? '/' : `/${route}`;
 
-            if (result.error) {
-              console.error(
-                `  [vite-ember-ssg] Error rendering ${url}:\n` +
-                  (result.error.stack ?? result.error.message),
-              );
-              errorCount++;
-              continue;
-            }
+              try {
+                const result = await app.renderRoute(url, {
+                  shoebox,
+                  rehydrate,
+                  cssManifest,
+                });
 
-            // 'index' → index.html (overwrite the shell)
-            // 'about' → about/index.html
-            // 'pokemon/charmander' → pokemon/charmander/index.html
-            const outputPath =
-              route === 'index'
-                ? join(clientDir, 'index.html')
-                : join(clientDir, route, 'index.html');
+                if (result.error) {
+                  console.error(
+                    `  [vite-ember-ssg] Error rendering ${url}:\n` +
+                      (result.error.stack ?? result.error.message),
+                  );
+                  errorCount++;
+                  return;
+                }
 
-            await mkdir(dirname(outputPath), { recursive: true });
-            await writeFile(outputPath, result.html, 'utf-8');
+                const html = assembleHTML(template, result);
 
-            console.log(
-              `  [vite-ember-ssg] ${url} → ${outputPath.replace(root + '/', '')}`,
-            );
-            successCount++;
-          } catch (e) {
-            console.error(
-              `  [vite-ember-ssg] Failed to prerender ${url}:\n` +
-                (e instanceof Error ? (e.stack ?? e.message) : String(e)),
-            );
-            errorCount++;
-          }
+                // 'index' → index.html (overwrite the shell)
+                // 'about' → about/index.html
+                // 'pokemon/charmander' → pokemon/charmander/index.html
+                const outputPath =
+                  route === 'index'
+                    ? join(clientDir, 'index.html')
+                    : join(clientDir, route, 'index.html');
+
+                await mkdir(dirname(outputPath), { recursive: true });
+                await writeFile(outputPath, html, 'utf-8');
+
+                console.log(
+                  `  [vite-ember-ssg] ${url} → ${outputPath.replace(root + '/', '')}`,
+                );
+                successCount++;
+              } catch (e) {
+                console.error(
+                  `  [vite-ember-ssg] Failed to prerender ${url}:\n` +
+                    (e instanceof Error ? (e.stack ?? e.message) : String(e)),
+                );
+                errorCount++;
+              }
+            }),
+          );
+        } finally {
+          await app.destroy();
         }
       } finally {
         // ── Step 3: Clean up the temporary SSR bundle ─────────────

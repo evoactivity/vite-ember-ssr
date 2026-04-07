@@ -1,12 +1,12 @@
-import { Worker } from 'node:worker_threads';
 import { pathToFileURL, fileURLToPath } from 'node:url';
+import { cpus } from 'node:os';
 import type { CssManifest } from './vite-plugin.js';
 
 // ─── Worker script path ───────────────────────────────────────────────
 
 // Resolve the worker script relative to this compiled file.
-// In the dist/ output both server.js and ssr-worker.js sit side-by-side.
-const WORKER_PATH = fileURLToPath(new URL('./ssr-worker.js', import.meta.url));
+// In the dist/ output both server.js and worker.js sit side-by-side.
+const WORKER_PATH = fileURLToPath(new URL('./worker.js', import.meta.url));
 
 // ─── Types ───────────────────────────────────────────────────────────
 
@@ -37,30 +37,7 @@ export interface BootOptions {
   _renderMode?: 'serialize' | 'rehydrate' | undefined;
 }
 
-export interface RenderOptions {
-  /** The URL path to render, e.g., '/' or '/about' */
-  url: string;
-
-  /**
-   * Absolute path (or `file://` URL) to the pre-built SSR bundle.
-   *
-   * The bundle must export a `createSsrApp` function. Each render runs
-   * in a fresh Worker thread so the bundle is imported clean every time —
-   * there is no shared module cache or prototype-patch accumulation
-   * between renders.
-   *
-   * @example
-   * ```js
-   * import { resolve } from 'node:path';
-   * const { html } = await render({
-   *   url: '/about',
-   *   template,
-   *   ssrBundlePath: resolve('dist/server/app-ssr.mjs'),
-   * });
-   * ```
-   */
-  ssrBundlePath: string;
-
+export interface RenderRouteOptions {
   /**
    * When true, intercepts all fetch() calls during SSR rendering and
    * serializes the responses into a <script> tag in the HTML output.
@@ -110,81 +87,108 @@ export interface ShoeboxEntry {
   body: string;
 }
 
-// ─── Core Rendering ──────────────────────────────────────────────────
+// ─── EmberApp ────────────────────────────────────────────────────────
+
+export interface EmberAppOptions {
+  /**
+   * Number of long-lived worker threads in the pool.
+   *
+   * Each worker imports the SSR bundle once and handles all subsequent
+   * render requests without re-importing — making per-render cost ~4ms
+   * instead of ~200ms for a fresh-worker approach.
+   *
+   * @default os.cpus().length
+   */
+  workers?: number;
+}
+
+export interface EmberApp {
+  /**
+   * Renders a route and returns the raw head/body HTML fragments.
+   *
+   * @param url  The URL path to render, e.g. `'/'` or `'/about'`
+   */
+  renderRoute(url: string, options?: RenderRouteOptions): Promise<RenderResult>;
+
+  /**
+   * Shuts down the worker pool. Call this when the app server is
+   * stopping or after SSG prerendering is complete.
+   */
+  destroy(): Promise<void>;
+}
 
 /**
- * Renders an Ember application at the given URL inside a fresh Worker
- * thread, giving each render complete V8 isolate + module registry
- * isolation.
+ * Creates a long-lived worker thread pool for SSR/SSG rendering.
  *
- * The SSR bundle is imported fresh in every Worker so prototype patches
- * applied by Ember initializers (e.g. `ember-provide-consume-context`)
- * never accumulate across renders.
+ * Each worker imports the SSR bundle once on first use and reuses it
+ * for all subsequent renders — no bundle re-import, no Worker respawn.
+ *
+ * @example
+ * ```js
+ * import { createEmberApp, assembleHTML } from 'vite-ember-ssr/server';
+ * import { resolve } from 'node:path';
+ *
+ * const app = await createEmberApp(resolve('dist/server/app-ssr.mjs'));
+ *
+ * // In a request handler:
+ * const result = await app.renderRoute(req.url);
+ * const html = assembleHTML(template, result);
+ *
+ * // On server shutdown:
+ * await app.destroy();
+ * ```
  */
-export async function renderEmberApp(
-  options: RenderOptions,
-): Promise<RenderResult> {
-  const {
-    ssrBundlePath,
-    url,
-    shoebox = false,
-    rehydrate = false,
-    cssManifest,
-  } = options;
-
-  // Normalise to a file:// URL string so the worker's import() works
-  // regardless of whether the caller passed an absolute path or URL.
+export async function createEmberApp(
+  ssrBundlePath: string,
+  options: EmberAppOptions = {},
+): Promise<EmberApp> {
   const bundleURL = ssrBundlePath.startsWith('file://')
     ? ssrBundlePath
     : pathToFileURL(ssrBundlePath).href;
 
-  return new Promise<RenderResult>((resolve, reject) => {
-    const worker = new Worker(WORKER_PATH, {
-      workerData: {
+  const workerCount = options.workers ?? cpus().length;
+
+  const { default: Tinypool } = await import('tinypool');
+  const pool = new Tinypool({
+    filename: WORKER_PATH,
+    minThreads: workerCount,
+    maxThreads: workerCount,
+    // Pass the bundle URL so the worker can import it eagerly at startup,
+    // paying the cold-start cost once (at server init) rather than on the
+    // first render request.
+    workerData: { ssrBundlePath: bundleURL },
+  });
+
+  return {
+    async renderRoute(
+      url: string,
+      renderOptions: RenderRouteOptions = {},
+    ): Promise<RenderResult> {
+      const result = (await pool.run({
         ssrBundlePath: bundleURL,
         url,
-        shoebox,
-        rehydrate,
-        cssManifest: cssManifest ?? null,
-      },
-    });
-
-    worker.once(
-      'message',
-      (result: {
-        head?: string;
-        body?: string;
-        statusCode?: number;
+        shoebox: renderOptions.shoebox ?? false,
+        rehydrate: renderOptions.rehydrate ?? false,
+        cssManifest: renderOptions.cssManifest ?? null,
+      })) as {
+        head: string;
+        body: string;
+        statusCode: number;
         error?: string;
-        fatalError?: string;
-      }) => {
-        worker.terminate();
+      };
 
-        if (result.fatalError) {
-          reject(new Error(result.fatalError));
-          return;
-        }
+      return {
+        head: result.head,
+        body: result.body,
+        statusCode: result.statusCode,
+        error: result.error ? new Error(result.error) : undefined,
+      };
+    },
 
-        resolve({
-          head: result.head ?? '',
-          body: result.body ?? '',
-          statusCode: result.statusCode ?? 500,
-          error: result.error ? new Error(result.error) : undefined,
-        });
-      },
-    );
-
-    worker.once('error', (err) => {
-      worker.terminate();
-      reject(err);
-    });
-
-    worker.once('exit', (code) => {
-      if (code !== 0) {
-        reject(new Error(`SSR worker exited with code ${code}`));
-      }
-    });
-  });
+    async destroy(): Promise<void> {
+      await pool.destroy();
+    },
+  };
 }
 
 // ─── HTML Assembly ───────────────────────────────────────────────────
@@ -224,41 +228,6 @@ export function hasSSRMarkers(html: string): { head: boolean; body: boolean } {
   return {
     head: html.includes(SSR_HEAD_MARKER),
     body: html.includes(SSR_BODY_MARKER),
-  };
-}
-
-// ─── Convenience: Render + Assemble ──────────────────────────────────
-
-export interface SSRResult {
-  html: string;
-  statusCode: number;
-  error?: Error;
-}
-
-/**
- * Renders an Ember app at the given URL and assembles the final HTML
- * in a single call. Combines `renderEmberApp` and `assembleHTML`.
- *
- * @example
- * ```js
- * const { html, statusCode } = await render({
- *   url: req.url,
- *   template,
- *   ssrBundlePath: resolve('dist/server/app-ssr.mjs'),
- * });
- * ```
- */
-export async function render(
-  options: RenderOptions & { template: string },
-): Promise<SSRResult> {
-  const { template, ...renderOptions } = options;
-  const result = await renderEmberApp(renderOptions);
-  const html = assembleHTML(template, result);
-
-  return {
-    html,
-    statusCode: result.statusCode,
-    error: result.error,
   };
 }
 

@@ -16,31 +16,34 @@
  * the plugin now uses ssr.noExternal: [/./] to bundle everything,
  * avoiding runtime resolution failures under pnpm's strict layout.
  */
-import { describe, it, expect, beforeAll } from 'vitest';
+import { describe, it, expect, beforeAll, afterAll } from 'vitest';
 import { resolve } from 'node:path';
 import { readFile, access } from 'node:fs/promises';
 import { fileURLToPath } from 'node:url';
-import { renderEmberApp, assembleHTML } from 'vite-ember-ssr/server';
+import { createEmberApp, assembleHTML } from 'vite-ember-ssr/server';
 
 const __dirname = fileURLToPath(new URL('.', import.meta.url));
 const testAppDist = resolve(__dirname, '../../test-app-monorepo-ssr/dist');
 
 let template;
+let app;
 
 const ssrBundlePath = resolve(testAppDist, 'server/app-ssr.mjs');
 
 beforeAll(async () => {
   template = await readFile(resolve(testAppDist, 'client/index.html'), 'utf-8');
+  app = await createEmberApp(ssrBundlePath);
+});
+
+afterAll(async () => {
+  await app.destroy();
 });
 
 /**
  * Helper: render a route and return the assembled HTML string.
  */
 async function renderRoute(url) {
-  const rendered = await renderEmberApp({
-    url,
-    ssrBundlePath,
-  });
+  const rendered = await app.renderRoute(url);
   const html = assembleHTML(template, rendered);
   return { html, rendered };
 }

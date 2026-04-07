@@ -1,9 +1,9 @@
-import { describe, it, expect, beforeAll } from 'vitest';
+import { describe, it, expect, beforeAll, afterAll } from 'vitest';
 import { resolve } from 'node:path';
 import { readFile } from 'node:fs/promises';
 import { fileURLToPath } from 'node:url';
 import {
-  renderEmberApp,
+  createEmberApp,
   assembleHTML,
   loadCssManifest,
 } from 'vite-ember-ssr/server';
@@ -13,24 +13,25 @@ const testAppDist = resolve(__dirname, '../../test-app-lazy-ssr/dist');
 
 let template;
 let cssManifest;
+let app;
 
 const ssrBundlePath = resolve(testAppDist, 'server/app-ssr.mjs');
 
 beforeAll(async () => {
   template = await readFile(resolve(testAppDist, 'client/index.html'), 'utf-8');
   cssManifest = await loadCssManifest(resolve(testAppDist, 'client'));
+  app = await createEmberApp(ssrBundlePath);
+});
+
+afterAll(async () => {
+  await app.destroy();
 });
 
 /**
  * Helper: render a route and return the assembled HTML string.
  */
 async function renderRoute(url, options = {}) {
-  const rendered = await renderEmberApp({
-    url,
-    ssrBundlePath,
-    cssManifest,
-    ...options,
-  });
+  const rendered = await app.renderRoute(url, { cssManifest, ...options });
   const html = assembleHTML(template, rendered);
   return { html, rendered };
 }
@@ -397,10 +398,7 @@ describe('Lazy SSR CSS link injection', () => {
 
   it('works correctly without a CSS manifest (graceful no-op)', async () => {
     // Render without passing cssManifest
-    const rendered = await renderEmberApp({
-      url: '/about',
-      ssrBundlePath,
-    });
+    const rendered = await app.renderRoute('/about');
     const html = assembleHTML(template, rendered);
 
     // Should still render successfully, just without CSS links

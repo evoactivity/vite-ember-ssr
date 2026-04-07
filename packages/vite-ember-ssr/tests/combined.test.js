@@ -258,7 +258,8 @@ describe('Combined mode: SSR server bundle', () => {
   });
 
   it('can dynamically render a non-prerendered route', async () => {
-    const { render } = await import('vite-ember-ssr/server');
+    const { createEmberApp, assembleHTML } =
+      await import('vite-ember-ssr/server');
     const bundlePath = resolve(serverDir, 'app-ssr.mjs');
 
     // Read the preserved SSR template — emberSsg copies index.html to
@@ -268,21 +269,28 @@ describe('Combined mode: SSR server bundle', () => {
       'utf-8',
     );
 
-    const result = await render({
-      url: '/pokemon-fetch',
-      template,
-      ssrBundlePath: bundlePath,
-      shoebox: true,
-    });
+    const dynApp = await createEmberApp(bundlePath);
+    try {
+      const rendered = await dynApp.renderRoute('/pokemon-fetch', {
+        shoebox: true,
+      });
+      const result = {
+        statusCode: rendered.statusCode,
+        html: assembleHTML(template, rendered),
+      };
 
-    expect(result.statusCode).toBe(200);
-    expect(result.html).toContain('data-route="pokemon-fetch"');
-    expect(result.html).toContain('data-component="pokemon-list"');
-    expect(result.html).toContain('data-pokemon="bulbasaur"');
+      expect(result.statusCode).toBe(200);
+      expect(result.html).toContain('data-route="pokemon-fetch"');
+      expect(result.html).toContain('data-component="pokemon-list"');
+      expect(result.html).toContain('data-pokemon="bulbasaur"');
+    } finally {
+      await dynApp.destroy();
+    }
   });
 
   it('renders the about route dynamically (matching prerendered output)', async () => {
-    const { render } = await import('vite-ember-ssr/server');
+    const { createEmberApp, assembleHTML } =
+      await import('vite-ember-ssr/server');
     const bundlePath = resolve(serverDir, 'app-ssr.mjs');
 
     const template = await readFile(
@@ -290,16 +298,20 @@ describe('Combined mode: SSR server bundle', () => {
       'utf-8',
     );
 
-    const result = await render({
-      url: '/about',
-      template,
-      ssrBundlePath: bundlePath,
-      shoebox: true,
-    });
+    const dynApp = await createEmberApp(bundlePath);
+    try {
+      const rendered = await dynApp.renderRoute('/about', { shoebox: true });
+      const result = {
+        statusCode: rendered.statusCode,
+        html: assembleHTML(template, rendered),
+      };
 
-    expect(result.statusCode).toBe(200);
-    expect(result.html).toContain('data-route="about"');
-    expect(result.html).toContain('<h1>About</h1>');
+      expect(result.statusCode).toBe(200);
+      expect(result.html).toContain('data-route="about"');
+      expect(result.html).toContain('<h1>About</h1>');
+    } finally {
+      await dynApp.destroy();
+    }
   });
 });
 
