@@ -1,13 +1,28 @@
 /**
- * Long-lived tinypool worker for SSR rendering.
+ * EXPERIMENT: long-lived-window
  *
- * The SSR bundle is imported and createSsrApp() is called eagerly at worker
- * startup via top-level await, using the bundle path supplied through
- * tinypool's workerData. This means the cold-start cost (bundle eval +
- * Ember app creation) is paid once when the server initialises its pool,
- * and every render request hits a fully warm EmberApplication instance.
+ * Models an SSR worker the same way a browser tab works: one Window,
+ * one EmberApplication, running forever. Every render is a bare
+ * `app.visit(url)` — no Window construction, no globalThis mutation,
+ * no DOM reset between requests.
  *
- * Worker API: tinypool single-function style — just `export default`.
+ * Hypothesis: the per-render Window construction + installGlobals() is
+ * a measurable cost that can be eliminated when renders are fully
+ * sequential within a single worker (tinypool serialises tasks per thread).
+ *
+ * Caveats / known risks:
+ *  - document accumulates state across renders (head/body from previous
+ *    visit may still be present unless Ember clears them itself).
+ *  - globalThis.location will always point at the initial URL unless
+ *    Ember's visit() mutates it in place — which it does via the
+ *    location service.
+ *  - Shoebox: fetch interceptor installs/restores around each visit,
+ *    same as before. No isolation concern there.
+ *  - CSS manifest: same lookup logic, no change.
+ *
+ * If Ember's visit() fully owns the document lifecycle (clearing and
+ * re-rendering head/body) this should work. If it accumulates state,
+ * the rendered HTML will be wrong and tests will catch it.
  */
 
 import { Window } from 'happy-dom';
@@ -66,15 +81,6 @@ const BROWSER_GLOBALS = [
 ] as const;
 
 function installGlobals(win: Window): void {
-  // Capture any Embroider-set properties from the previous window BEFORE
-  // replacing it. Embroider's lazy route loader writes `_embroiderRouteBundles_`
-  // onto `window` at bundle evaluation time. When we swap in a fresh Window
-  // per render, the new window object won't have this property — causing lazy
-  // routes to resolve as empty. We copy it forward explicitly.
-  const prevWindow = (globalThis as Record<string, unknown>)['window'] as
-    | Record<string, unknown>
-    | undefined;
-
   for (const name of BROWSER_GLOBALS) {
     try {
       Object.defineProperty(globalThis, name, {
@@ -87,29 +93,16 @@ function installGlobals(win: Window): void {
       /* skip non-overridable globals */
     }
   }
-
-  if (prevWindow && '_embroiderRouteBundles_' in prevWindow) {
-    (win as unknown as Record<string, unknown>)['_embroiderRouteBundles_'] =
-      prevWindow['_embroiderRouteBundles_'];
-  }
 }
 
-// ─── Eager startup: import bundle + create app ────────────────────────
+// ─── Eager startup: single long-lived Window + app ────────────────────
 //
-// workerData.ssrBundlePath is set by server.ts when constructing the pool.
-// Top-level await here runs before tinypool dispatches the first render
-// request, so every render hits a fully warm EmberApplication.
+// One Window is created at worker startup and lives forever.
+// globalThis is set once. The EmberApplication is created once.
+// Renders are serialised by tinypool (one task at a time per thread),
+// so there is no concurrency concern within a single worker.
 
-const { ssrBundlePath: startupBundlePath } = (
-  process as unknown as {
-    __tinypool_state__: { workerData: { ssrBundlePath: string } };
-  }
-).__tinypool_state__.workerData;
-
-// Install globals from a bootstrap Window before importing the bundle.
-// Bundles (and their lazy chunks) may access window/document at module
-// evaluation time, so a real Window must be in globalThis beforehand.
-const bootstrapWin = new Window({
+const win = new Window({
   url: 'http://localhost/',
   width: 1024,
   height: 768,
@@ -120,7 +113,15 @@ const bootstrapWin = new Window({
     navigator: { userAgent: 'vite-ember-ssr' },
   },
 });
-installGlobals(bootstrapWin);
+
+// Install browser globals once for this worker's lifetime.
+installGlobals(win);
+
+const { ssrBundlePath: startupBundlePath } = (
+  process as unknown as {
+    __tinypool_state__: { workerData: { ssrBundlePath: string } };
+  }
+).__tinypool_state__.workerData;
 
 const startupMod = (await import(startupBundlePath)) as {
   createSsrApp?: () => EmberApplication;
@@ -231,26 +232,11 @@ export default async function render(
 ): Promise<WorkerRenderResult> {
   const { url, shoebox, rehydrate, cssManifest } = options;
 
-  // Create a fresh Window per render for an isolated DOM / location / document.
-  const win = new Window({
-    url: `http://localhost${url}`,
-    width: 1024,
-    height: 768,
-    settings: {
-      disableJavaScriptFileLoading: true,
-      disableJavaScriptEvaluation: true,
-      disableCSSFileLoading: true,
-      navigator: { userAgent: 'vite-ember-ssr' },
-    },
-  });
-
-  // Update globalThis.window/document/location to this render's Window so
-  // Ember sees the correct URL and document for this request.
-  installGlobals(win);
+  // Use the long-lived document directly — no new Window, no globalThis swap.
+  const document = win.document;
 
   const interceptor = shoebox ? createFetchInterceptor() : null;
 
-  const document = win.document;
   let head = '';
   let body = '';
   let cssLinks = '';
@@ -276,6 +262,12 @@ export default async function render(
       if (cssManifest) cssLinks = buildRouteCssLinks(cssManifest, instance);
       head = document.head?.innerHTML ?? '';
       body = document.body?.innerHTML ?? '';
+
+      // Destroy the instance so its container is torn down cleanly.
+      // app.visit() creates a fresh ApplicationInstance per call; without
+      // destroying it the container's singletons (including location:none)
+      // remain live and can corrupt the next visit.
+      instance.destroy();
     } finally {
       interceptor?.restore();
     }
