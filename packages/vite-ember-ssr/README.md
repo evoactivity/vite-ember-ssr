@@ -141,20 +141,27 @@ vite build --ssr app/app-ssr.ts # server → dist/server
 
 #### 7. Server
 
-Wire up `render()` in your server's catch-all route. The `createApp` option must be an **async factory function** — it is called inside a HappyDOM browser-globals context for each render, so dynamic `import()` of the SSR bundle must happen inside it:
+Create the worker pool once at startup with `createEmberApp`, then call `renderRoute` in your catch-all handler:
 
 ```js
-import { render } from 'vite-ember-ssr/server';
+import { createEmberApp, assembleHTML } from 'vite-ember-ssr/server';
 
-// Production example:
-const { html, statusCode } = await render({
-  url: request.url,
-  template,
-  createApp: async () => {
-    const { createSsrApp } = await import('./dist/server/app-ssr.mjs');
-    return createSsrApp();
-  },
-});
+// Production: creates a tinypool worker pool, imports the SSR bundle once per worker
+const emberApp = await createEmberApp('./dist/server/app-ssr.mjs');
+
+// Development: renders in-process via Vite's ssrLoadModule, re-loads on every render
+// const vite = await createServer({ ... });
+// const emberApp = await createEmberApp('app/app-ssr.ts', {
+//   dev: { ssrLoadModule: vite.ssrLoadModule.bind(vite) },
+// });
+
+// In your catch-all route handler:
+const rendered = await emberApp.renderRoute(request.url);
+const html = assembleHTML(template, rendered);
+// rendered.statusCode, rendered.error also available
+
+// On server shutdown:
+await emberApp.destroy();
 ```
 
 See [examples/fastify.md](https://github.com/evoactivity/vite-ember-ssr/blob/main/examples/fastify.md) for a complete Fastify example with dev and production modes.
@@ -367,10 +374,13 @@ Your server checks for a prerendered static file first, then falls back to dynam
 
 ```js
 import { readFile, access } from 'node:fs/promises';
-import { render } from 'vite-ember-ssr/server';
+import { createEmberApp, assembleHTML } from 'vite-ember-ssr/server';
 
 // Load _template.html once at startup — it contains the SSR markers
 const ssrTemplate = await readFile('dist/client/_template.html', 'utf-8');
+
+// Create the worker pool once at startup
+const emberApp = await createEmberApp('./dist/server/app-ssr.mjs');
 
 // In your catch-all route handler:
 app.get('*', async (request, reply) => {
@@ -387,17 +397,12 @@ app.get('*', async (request, reply) => {
   }
 
   // 2. Fall back to dynamic SSR
-  const { html, statusCode } = await render({
-    url,
-    template: ssrTemplate,
-    createApp: async () => {
-      const { createSsrApp } = await import('./dist/server/app-ssr.mjs');
-      return createSsrApp();
-    },
+  const rendered = await emberApp.renderRoute(url, {
     shoebox: true, // opt-in: replay fetch responses on the client (see Shoebox section)
   });
+  const html = assembleHTML(ssrTemplate, rendered);
 
-  return reply.code(statusCode).type('text/html').send(html);
+  return reply.code(rendered.statusCode).type('text/html').send(html);
 });
 ```
 
@@ -414,14 +419,8 @@ The server wraps rendered content in boundary markers. On boot, `cleanupSSRConte
 **Server:** use default options (no `rehydrate` flag)
 
 ```js
-const { html } = await render({
-  url,
-  template,
-  createApp: async () => {
-    const { createSsrApp } = await import('./dist/server/app-ssr.mjs');
-    return createSsrApp();
-  },
-});
+const rendered = await emberApp.renderRoute(url);
+const html = assembleHTML(template, rendered);
 ```
 
 **Client entry (`app/entry.ts`):**
@@ -453,15 +452,8 @@ The server renders with `_renderMode: 'serialize'`, which annotates the DOM with
 **Server:** pass `rehydrate: true`
 
 ```js
-const { html } = await render({
-  url,
-  template,
-  createApp: async () => {
-    const { createSsrApp } = await import('./dist/server/app-ssr.mjs');
-    return createSsrApp();
-  },
-  rehydrate: true,
-});
+const rendered = await emberApp.renderRoute(url, { rehydrate: true });
+const html = assembleHTML(template, rendered);
 ```
 
 **Client entry (`app/entry.ts`):**
@@ -502,18 +494,11 @@ The shoebox captures `fetch` responses made during SSR/SSG and serializes them i
 
 #### Enabling shoebox
 
-**Server side** — pass `shoebox: true` to `render()` or `renderEmberApp()`:
+**Server side** — pass `shoebox: true` to `renderRoute()`:
 
 ```js
-const { html } = await render({
-  url,
-  template,
-  createApp: async () => {
-    const { createSsrApp } = await import('./dist/server/app-ssr.mjs');
-    return createSsrApp();
-  },
-  shoebox: true,
-});
+const rendered = await emberApp.renderRoute(url, { shoebox: true });
+const html = assembleHTML(template, rendered);
 ```
 
 For SSG, pass `shoebox: true` to `emberSsg()`:
@@ -603,13 +588,10 @@ module.exports = {
 };
 ```
 
-3. The `createApp` function passed to `render()` must be **async** and dynamically import the SSR bundle (this is the standard pattern for all apps, not just lazy routes):
+3. Pass the absolute path to the built SSR bundle when calling `createEmberApp()`:
 
 ```js
-createApp: async () => {
-  const { createSsrApp } = await import('./dist/server/app-ssr.mjs');
-  return createSsrApp();
-},
+const emberApp = await createEmberApp('./dist/server/app-ssr.mjs');
 ```
 
 #### How it works
@@ -683,15 +665,20 @@ This applies to both SSR and SSG modes. Vite's `config` hook deep-merges arrays,
 ### `vite-ember-ssr/server`
 
 ```js
-import { render } from 'vite-ember-ssr/server';
+import { createEmberApp, assembleHTML } from 'vite-ember-ssr/server';
 ```
 
-- **`render({ url, template, createApp, shoebox?, rehydrate? })`** — render an Ember app and assemble the final HTML. `createApp` must be an **async function** (`() => Promise<EmberApplication>`) — it is called inside a HappyDOM browser-globals context, so the SSR bundle should be dynamically imported within it. Returns `{ html, statusCode, error }`.
+- **`createEmberApp(ssrBundlePath, options?)`** — creates a long-lived tinypool worker pool. Each worker imports the SSR bundle once at startup and handles all subsequent render requests without re-importing. Returns an `EmberApp` object. Options: `{ workers?: number }` (default: `os.cpus().length`).
 
-Lower-level functions are also exported for advanced use:
+- **`app.renderRoute(url, options?)`** — renders a URL path and returns `{ head, body, statusCode, error }`. Options: `{ shoebox?, rehydrate?, cssManifest? }`.
 
-- **`renderEmberApp({ url, createApp, shoebox?, rehydrate? })`** — render only, returns `{ head, body, statusCode, error }`. Same async `createApp` requirement.
-- **`assembleHTML(template, renderResult)`** — replace SSR markers in the HTML template.
+- **`app.destroy()`** — shuts down the worker pool. Call when the server is stopping.
+
+- **`assembleHTML(template, renderResult)`** — inserts rendered `head` and `body` fragments into the HTML template by replacing the `<!-- VITE_EMBER_SSR_HEAD -->` and `<!-- VITE_EMBER_SSR_BODY -->` markers.
+
+- **`loadCssManifest(clientDir)`** — loads the CSS manifest from the client build output directory. Returns `undefined` if not present. Used with lazy routes.
+
+- **`hasSSRMarkers(html)`** — checks whether an HTML string contains the SSR markers. Returns `{ head: boolean, body: boolean }`.
 
 ### `vite-ember-ssr/client`
 

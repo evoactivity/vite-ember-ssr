@@ -10,7 +10,7 @@ import Fastify from 'fastify';
 import { readFile, access } from 'node:fs/promises';
 import { resolve } from 'node:path';
 import { fileURLToPath } from 'node:url';
-import { render } from 'vite-ember-ssr/server';
+import { createEmberApp, assembleHTML } from 'vite-ember-ssr/server';
 
 const __dirname = fileURLToPath(new URL('.', import.meta.url));
 const port = parseInt(process.env.PORT ?? '4200', 10);
@@ -34,13 +34,14 @@ async function start() {
   });
 
   // Read the SSR template preserved by emberSsg during the client build.
-  const serverEntryPath = resolve(serverDir, 'app-ssr.mjs');
   // When both plugins are used together, emberSsg copies index.html to
   // _template.html before overwriting it with prerendered content.
   const ssrTemplate = await readFile(
     resolve(clientDir, '_template.html'),
     'utf-8',
   );
+
+  const emberApp = await createEmberApp(resolve(serverDir, 'app-ssr.mjs'));
 
   app.get('*', async (request, reply) => {
     const url = request.url;
@@ -62,17 +63,13 @@ async function start() {
 
     // Step 2: Dynamic SSR fallback
     try {
-      const { html, statusCode, error } = await render({
-        url,
-        template: ssrTemplate,
-        ssrBundlePath: serverEntryPath,
-        shoebox: true,
-      });
+      const rendered = await emberApp.renderRoute(url, { shoebox: true });
+      const html = assembleHTML(ssrTemplate, rendered);
 
-      if (error) app.log.error(error, 'SSR rendering error');
+      if (rendered.error) app.log.error(rendered.error, 'SSR rendering error');
       app.log.info({ url, prerendered: false }, 'Dynamic SSR render');
 
-      return reply.code(statusCode).type('text/html').send(html);
+      return reply.code(rendered.statusCode).type('text/html').send(html);
     } catch (e) {
       app.log.error(e, 'SSR request failed');
       return reply

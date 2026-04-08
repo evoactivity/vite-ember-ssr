@@ -2,7 +2,7 @@ import Fastify from 'fastify';
 import { readFile } from 'node:fs/promises';
 import { resolve } from 'node:path';
 import { fileURLToPath } from 'node:url';
-import { render } from 'vite-ember-ssr/server';
+import { createEmberApp, assembleHTML } from 'vite-ember-ssr/server';
 
 const __dirname = fileURLToPath(new URL('.', import.meta.url));
 const isDev = process.argv.includes('--dev');
@@ -51,32 +51,33 @@ async function setupDevMode(app) {
   await app.register(import('@fastify/middie'));
   app.use(vite.middlewares);
 
-  // Catch-all route for SSR
+  const emberApp = await createEmberApp(
+    resolve(testAppRoot, 'app/app-ssr.ts'),
+    {
+      dev: { ssrLoadModule: vite.ssrLoadModule.bind(vite) },
+    },
+  );
+
+  const rawTemplate = await readFile(
+    resolve(testAppRoot, 'index.html'),
+    'utf-8',
+  );
+
   app.get('*', async (request, reply) => {
     const url = request.url;
 
-    if (isAssetRequest(url)) {
-      return;
-    }
-
     try {
-      let template = await readFile(
-        resolve(testAppRoot, 'index.html'),
-        'utf-8',
-      );
-      template = await vite.transformIndexHtml(url, template);
+      const template = await vite.transformIndexHtml(url, rawTemplate);
 
-      const { html, statusCode, error } = await render({
-        url,
-        template,
-        ssrBundlePath: resolve(testAppRoot, 'app/app-ssr.ts'),
+      const rendered = await emberApp.renderRoute(url, {
         shoebox: true,
         rehydrate: true,
       });
+      const html = assembleHTML(template, rendered);
 
-      if (error) app.log.error(error, 'SSR rendering error');
+      if (rendered.error) app.log.error(rendered.error, 'SSR rendering error');
 
-      return reply.code(statusCode).type('text/html').send(html);
+      return reply.code(rendered.statusCode).type('text/html').send(html);
     } catch (e) {
       if (e instanceof Error) {
         vite.ssrFixStacktrace(e);
@@ -108,7 +109,9 @@ async function setupProductionMode(app) {
     'utf-8',
   );
 
-  const serverEntryPath = resolve(testAppDist, 'server/app-ssr.mjs');
+  const emberApp = await createEmberApp(
+    resolve(testAppDist, 'server/app-ssr.mjs'),
+  );
 
   app.get('*', async (request, reply) => {
     const url = request.url;
@@ -118,17 +121,15 @@ async function setupProductionMode(app) {
     }
 
     try {
-      const { html, statusCode, error } = await render({
-        url,
-        template,
-        ssrBundlePath: serverEntryPath,
+      const rendered = await emberApp.renderRoute(url, {
         shoebox: true,
         rehydrate: true,
       });
+      const html = assembleHTML(template, rendered);
 
-      if (error) app.log.error(error, 'SSR rendering error');
+      if (rendered.error) app.log.error(rendered.error, 'SSR rendering error');
 
-      return reply.code(statusCode).type('text/html').send(html);
+      return reply.code(rendered.statusCode).type('text/html').send(html);
     } catch (e) {
       app.log.error(e, 'SSR request failed');
       return reply

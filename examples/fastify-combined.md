@@ -45,7 +45,7 @@ import Fastify from 'fastify';
 import { readFile, access } from 'node:fs/promises';
 import { resolve } from 'node:path';
 import { fileURLToPath } from 'node:url';
-import { render } from 'vite-ember-ssr/server';
+import { createEmberApp, assembleHTML } from 'vite-ember-ssr/server';
 
 const __dirname = fileURLToPath(new URL('.', import.meta.url));
 const port = parseInt(process.env.PORT ?? '4200', 10);
@@ -68,9 +68,6 @@ async function start() {
     index: false, // Don't serve index.html for directory requests
   });
 
-  // Load the SSR bundle path for dynamic imports inside render()
-  const ssrBundlePath = resolve(serverDir, 'app-ssr.mjs');
-
   // Read the SSR template preserved by emberSsg during the client build.
   // When both plugins are used together, emberSsg copies index.html to
   // _template.html before overwriting it with prerendered content.
@@ -79,6 +76,9 @@ async function start() {
     resolve(clientDir, '_template.html'),
     'utf-8',
   );
+
+  // Create the worker pool once at startup
+  const emberApp = await createEmberApp(resolve(serverDir, 'app-ssr.mjs'));
 
   app.get('*', async (request, reply) => {
     const url = request.url;
@@ -99,20 +99,15 @@ async function start() {
 
     // Step 2: Dynamic SSR fallback
     try {
-      const { html, statusCode, error } = await render({
-        url,
-        template: ssrTemplate,
-        createApp: async () => {
-          const { createSsrApp } = await import(ssrBundlePath);
-          return createSsrApp();
-        },
+      const rendered = await emberApp.renderRoute(url, {
         shoebox: true, // opt-in: replay fetch responses on the client
       });
+      const html = assembleHTML(ssrTemplate, rendered);
 
-      if (error) app.log.error(error, 'SSR rendering error');
+      if (rendered.error) app.log.error(rendered.error, 'SSR rendering error');
       app.log.info({ url, prerendered: false }, 'Dynamic SSR render');
 
-      return reply.code(statusCode).type('text/html').send(html);
+      return reply.code(rendered.statusCode).type('text/html').send(html);
     } catch (e) {
       app.log.error(e, 'SSR request failed');
       return reply
@@ -159,12 +154,13 @@ node server.js
 
 1. **Prerendered routes** (`/`, `/about`, `/contact`) are served directly as static HTML files from `dist/client/`. No Node.js rendering cost — the response is just a file read.
 
-2. **All other routes** fall through to dynamic SSR using `render()` from `vite-ember-ssr/server`. The server reads `_template.html` (the original `index.html` with SSR markers) and renders the route on-demand with HappyDOM.
+2. **All other routes** fall through to dynamic SSR using `renderRoute()`. The server reads `_template.html` (the original `index.html` with SSR markers) and renders the route on-demand with HappyDOM.
 
-3. **`_template.html`** is created automatically by `emberSsg` during the client build. It's a copy of the original `index.html` before prerendering overwrites it. This file contains the `<!-- VITE_EMBER_SSR_HEAD -->` and `<!-- VITE_EMBER_SSR_BODY -->` markers that `render()` needs.
+3. **`_template.html`** is created automatically by `emberSsg` during the client build. It's a copy of the original `index.html` before prerendering overwrites it. This file contains the `<!-- VITE_EMBER_SSR_HEAD -->` and `<!-- VITE_EMBER_SSR_BODY -->` markers that `assembleHTML()` needs.
 
 ## Key points
 
+- **`createEmberApp(ssrBundlePath)`** creates a tinypool worker pool at startup. Call it once — not per-request.
 - **`_template.html`** — When `emberSsg` detects `emberSsr` in the same config, it preserves the original `index.html` as `_template.html` before overwriting it with prerendered content. Your server reads this file for dynamic SSR.
 - **`index: false`** on `@fastify/static` prevents it from serving `index.html` for directory requests, which would bypass the catch-all handler.
 - **`shoebox: true`** is opt-in — it captures `fetch` responses during dynamic SSR and serializes them into the HTML. The client's `installShoebox()` replays them to avoid duplicate API requests. Only needed when your routes fetch data during SSR. See the [Shoebox section](../packages/vite-ember-ssr/README.md#shoebox) in the main README.
@@ -184,19 +180,14 @@ emberSsg({
 }),
 ```
 
-**Dynamic SSR fallback:** pass `rehydrate: true` to `render()` in your server:
+**Dynamic SSR fallback:** pass `rehydrate: true` to `renderRoute()` in your server:
 
 ```js
-const { html, statusCode, error } = await render({
-  url,
-  template: ssrTemplate,
-  createApp: async () => {
-    const { createSsrApp } = await import('./dist/server/app-ssr.mjs');
-    return createSsrApp();
-  },
+const rendered = await emberApp.renderRoute(url, {
   shoebox: true, // opt-in: only needed if routes fetch data during SSR
   rehydrate: true,
 });
+const html = assembleHTML(ssrTemplate, rendered);
 ```
 
 You can use the same mode for both (simplest), or mix them — e.g., rehydrate for prerendered pages and cleanup for dynamic SSR, or vice versa. If both use the same mode, the client entry is straightforward. If they differ, the client uses `shouldRehydrate()` from `vite-ember-ssr/client` to detect which mode was used and boot accordingly. See the main [README](../packages/vite-ember-ssr/README.md#client-boot-modes) for full details on both client boot modes.

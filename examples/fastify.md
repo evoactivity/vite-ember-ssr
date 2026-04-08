@@ -15,7 +15,7 @@ import Fastify from 'fastify';
 import { readFile } from 'node:fs/promises';
 import { resolve } from 'node:path';
 import { fileURLToPath } from 'node:url';
-import { render } from 'vite-ember-ssr/server';
+import { createEmberApp, assembleHTML } from 'vite-ember-ssr/server';
 
 const __dirname = fileURLToPath(new URL('.', import.meta.url));
 const isDev = process.argv.includes('--dev');
@@ -53,6 +53,12 @@ async function setupDev(app) {
   await app.register(import('@fastify/middie'));
   app.use(vite.middlewares);
 
+  // In dev mode, pass ssrLoadModule so the entry is loaded through Vite's
+  // transform pipeline on every render — HMR changes are reflected immediately.
+  const emberApp = await createEmberApp(resolve(appRoot, 'app/app-ssr.ts'), {
+    dev: { ssrLoadModule: vite.ssrLoadModule.bind(vite) },
+  });
+
   app.get('*', async (request, reply) => {
     if (isAsset(request.url)) return;
 
@@ -60,17 +66,13 @@ async function setupDev(app) {
       let template = await readFile(resolve(appRoot, 'index.html'), 'utf-8');
       template = await vite.transformIndexHtml(request.url, template);
 
-      const mod = await vite.ssrLoadModule(resolve(appRoot, 'app/app-ssr.ts'));
-
-      const { html, statusCode, error } = await render({
-        url: request.url,
-        template,
-        createApp: async () => mod.createSsrApp(),
+      const rendered = await emberApp.renderRoute(request.url, {
         shoebox: true, // opt-in: replay fetch responses on the client
       });
+      const html = assembleHTML(template, rendered);
 
-      if (error) app.log.error(error, 'SSR rendering error');
-      return reply.code(statusCode).type('text/html').send(html);
+      if (rendered.error) app.log.error(rendered.error, 'SSR rendering error');
+      return reply.code(rendered.statusCode).type('text/html').send(html);
     } catch (e) {
       if (e instanceof Error) vite.ssrFixStacktrace(e);
       app.log.error(e);
@@ -93,28 +95,26 @@ async function setupProd(app) {
     index: false, // Don't serve index.html for directory requests
   });
 
-  const ssrBundlePath = resolve(appDist, 'server/app-ssr.mjs');
   const template = await readFile(
     resolve(appDist, 'client/index.html'),
     'utf-8',
   );
 
+  // Create the worker pool once at startup — the SSR bundle is imported
+  // inside each worker thread, paying the cold-start cost once.
+  const emberApp = await createEmberApp(resolve(appDist, 'server/app-ssr.mjs'));
+
   app.get('*', async (request, reply) => {
     if (isAsset(request.url)) return;
 
     try {
-      const { html, statusCode, error } = await render({
-        url: request.url,
-        template,
-        createApp: async () => {
-          const { createSsrApp } = await import(ssrBundlePath);
-          return createSsrApp();
-        },
+      const rendered = await emberApp.renderRoute(request.url, {
         shoebox: true, // opt-in: replay fetch responses on the client
       });
+      const html = assembleHTML(template, rendered);
 
-      if (error) app.log.error(error, 'SSR rendering error');
-      return reply.code(statusCode).type('text/html').send(html);
+      if (rendered.error) app.log.error(rendered.error, 'SSR rendering error');
+      return reply.code(rendered.statusCode).type('text/html').send(html);
     } catch (e) {
       app.log.error(e);
       return reply
@@ -149,6 +149,10 @@ node server.js
 
 ## Key points
 
+- **`createEmberApp(ssrBundlePath)`** creates a tinypool worker pool at startup. Each worker imports the SSR bundle once and handles all subsequent render requests — no per-request re-import.
+- **`createEmberApp(entryPath, { dev: { ssrLoadModule } })`** — dev mode variant. Skips tinypool entirely, renders in-process via Vite's `ssrLoadModule` pipeline. The entry is re-loaded on every render so HMR changes are reflected immediately.
+- **`assembleHTML(template, rendered)`** inserts the rendered `head` and `body` fragments into the HTML template.
+- **`emberApp.destroy()`** shuts down the worker pool. Call it when the server is stopping (e.g. on `SIGTERM`).
 - **`process.chdir(appRoot)`** is required in dev mode — `@embroider/vite` uses `process.cwd()` to locate the Ember app.
 - **`index: false`** on `@fastify/static` prevents it from serving `index.html` for directory requests, which would bypass the SSR handler.
 - **`shoebox: true`** is opt-in — it captures `fetch` responses during SSR and serializes them into the HTML. The client's `installShoebox()` replays them to avoid duplicate API requests. Only needed when your routes fetch data during SSR. See the [Shoebox section](../packages/vite-ember-ssr/README.md#shoebox) in the main README.
@@ -156,19 +160,14 @@ node server.js
 
 ## Rehydration
 
-By default, SSR uses **cleanup mode** — the server wraps rendered content in boundary markers, and `cleanupSSRContent()` (called from the application template) removes the SSR content when Ember boots. To use **rehydrate mode** instead, pass `rehydrate: true` to `render()`:
+By default, SSR uses **cleanup mode** — the server wraps rendered content in boundary markers, and `cleanupSSRContent()` (called from the application template) removes the SSR content when Ember boots. To use **rehydrate mode** instead, pass `rehydrate: true` to `renderRoute()`:
 
 ```js
-const { html, statusCode, error } = await render({
-  url: request.url,
-  template,
-  createApp: async () => {
-    const { createSsrApp } = await import('./dist/server/app-ssr.mjs');
-    return createSsrApp();
-  },
+const rendered = await emberApp.renderRoute(request.url, {
   shoebox: true, // opt-in: only needed if routes fetch data during SSR
   rehydrate: true,
 });
+const html = assembleHTML(template, rendered);
 ```
 
 In rehydrate mode, the server renders with `_renderMode: 'serialize'`, annotating the DOM with Glimmer markers. The client uses `shouldRehydrate()` from `vite-ember-ssr/client` to detect this and boot accordingly — see the main [README](../packages/vite-ember-ssr/README.md#client-boot-modes) for the full client-side setup. No `cleanupSSRContent` is needed.

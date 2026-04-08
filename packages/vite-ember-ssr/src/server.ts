@@ -1,6 +1,7 @@
 import { pathToFileURL, fileURLToPath } from 'node:url';
 import { cpus } from 'node:os';
 import type { CssManifest } from './vite-plugin.js';
+import { createDevEmberApp } from './dev.js';
 
 // ─── Worker script path ───────────────────────────────────────────────
 
@@ -89,6 +90,25 @@ export interface ShoeboxEntry {
 
 // ─── EmberApp ────────────────────────────────────────────────────────
 
+export interface EmberAppDevOptions {
+  /**
+   * Vite's `ssrLoadModule` function from the dev server.
+   *
+   * When provided, `createEmberApp` skips tinypool entirely and renders
+   * in-process using Vite's module resolution pipeline. The SSR entry is
+   * re-loaded on every render so HMR changes are reflected immediately.
+   *
+   * Obtain this from your Vite dev server instance:
+   * ```js
+   * const vite = await createServer({ ... });
+   * await createEmberApp('app/app-ssr.ts', {
+   *   dev: { ssrLoadModule: vite.ssrLoadModule.bind(vite) },
+   * });
+   * ```
+   */
+  ssrLoadModule: (path: string) => Promise<Record<string, unknown>>;
+}
+
 export interface EmberAppOptions {
   /**
    * Number of long-lived worker threads in the pool.
@@ -97,9 +117,17 @@ export interface EmberAppOptions {
    * render requests without re-importing — making per-render cost ~4ms
    * instead of ~200ms for a fresh-worker approach.
    *
+   * Ignored when `dev` is provided.
+   *
    * @default os.cpus().length
    */
   workers?: number;
+
+  /**
+   * Dev mode options. When provided, skips tinypool and renders in-process
+   * via Vite's `ssrLoadModule` so HMR changes are picked up on every render.
+   */
+  dev?: EmberAppDevOptions;
 }
 
 export interface EmberApp {
@@ -117,13 +145,20 @@ export interface EmberApp {
   destroy(): Promise<void>;
 }
 
+// ─── EmberApp factory ────────────────────────────────────────────────
+
 /**
  * Creates a long-lived worker thread pool for SSR/SSG rendering.
  *
- * Each worker imports the SSR bundle once on first use and reuses it
- * for all subsequent renders — no bundle re-import, no Worker respawn.
+ * Each worker imports the SSR bundle once at startup and reuses it for all
+ * subsequent renders — no bundle re-import, no Worker respawn.
  *
- * @example
+ * Pass `dev: { ssrLoadModule }` to run in dev mode instead: renders happen
+ * in-process via Vite's module resolution pipeline with no tinypool workers.
+ * The SSR entry is re-loaded on every render so HMR changes are reflected
+ * immediately.
+ *
+ * @example Production
  * ```js
  * import { createEmberApp, assembleHTML } from 'vite-ember-ssr/server';
  * import { resolve } from 'node:path';
@@ -137,11 +172,26 @@ export interface EmberApp {
  * // On server shutdown:
  * await app.destroy();
  * ```
+ *
+ * @example Development
+ * ```js
+ * import { createServer } from 'vite';
+ * import { createEmberApp, assembleHTML } from 'vite-ember-ssr/server';
+ *
+ * const vite = await createServer({ server: { middlewareMode: true }, appType: 'custom' });
+ * const app = await createEmberApp('app/app-ssr.ts', {
+ *   dev: { ssrLoadModule: vite.ssrLoadModule.bind(vite) },
+ * });
+ * ```
  */
 export async function createEmberApp(
   ssrBundlePath: string,
   options: EmberAppOptions = {},
 ): Promise<EmberApp> {
+  if (options.dev) {
+    return createDevEmberApp(ssrBundlePath, options.dev);
+  }
+
   const bundleURL = ssrBundlePath.startsWith('file://')
     ? ssrBundlePath
     : pathToFileURL(ssrBundlePath).href;

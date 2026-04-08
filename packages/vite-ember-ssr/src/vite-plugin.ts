@@ -197,8 +197,7 @@ function buildCssManifest(
 }
 
 /**
- * Clears any user-specified `ssr.external` from the Vite config and
- * returns `ssr: { noExternal: [/./] }` to bundle all dependencies.
+ * Returns SSR config appropriate for the current Vite command.
  *
  * Ember's virtual packages (`@glimmer/tracking`, `@ember/*`, etc.) are
  * provided by `ember-source` and not published as real npm packages.
@@ -206,23 +205,82 @@ function buildCssManifest(
  * these virtual packages, Node's runtime module resolution fails under
  * pnpm's strict `node_modules` layout.
  *
- * Bundling everything avoids this class of failure entirely. SSR bundles
- * run server-side where bundle size is not a user-facing concern.
+ * For both production builds and dev mode:
+ *   - Clears any user-specified `ssr.external` (explicit string entries
+ *     take precedence over `noExternal` patterns in Vite, so we must
+ *     remove them to ensure `noExternal: [/./]` applies).
+ *   - Sets `ssr: { noExternal: [/./] }` so all deps go through Vite's
+ *     transform pipeline. This lets `@embroider/vite`'s resolver handle
+ *     virtual Ember/Glimmer packages that don't exist outside `ember-source`
+ *     under pnpm's strict `node_modules` layout.
  *
- * In Vite, explicit `string[]` entries in `ssr.external` take precedence
- * over `ssr.noExternal` patterns, so we must also delete any
- * user-specified externals to ensure the `noExternal: [/./]` pattern
- * actually applies.
+ * In dev mode, `ssrLoadModule` uses `SSRCompatModuleRunner` +
+ * `ESModulesEvaluator`. Without bundling, this evaluates all module code
+ * inline. CJS/UMD packages (e.g. `@warp-drive/utilities/string`,
+ * `json-to-ast`) reference `module`, `exports`, or `global` which are not
+ * available in the evaluator's context.
+ *
+ * The `cjsSsrShimTransform` hook (applied by `emberSsr()` and `emberSsg()`)
+ * intercepts those files before they reach `ssrTransform` and wraps them
+ * with a lightweight CommonJS shim, providing the missing `module`,
+ * `exports`, and `global` bindings.
  *
  * See: https://github.com/evoactivity/vite-ember-ssr/issues/4
  */
-function bundleAllDeps(userConfig: UserConfig): {
-  ssr: { noExternal: [RegExp] };
-} {
+function ssrDepsConfig(
+  userConfig: UserConfig,
+  _command: 'build' | 'serve',
+): { ssr?: UserConfig['ssr'] } {
   if (userConfig.ssr) {
     delete userConfig.ssr.external;
   }
   return { ssr: { noExternal: [/./] } };
+}
+
+/**
+ * Returns a Vite `transform` hook that wraps CJS/UMD modules encountered
+ * during SSR transforms.
+ *
+ * When `noExternal: [/./]` is set, every dependency goes through Vite's
+ * `ssrTransform` → `ESModulesEvaluator` pipeline. CJS/UMD files that use
+ * `module`, `exports`, or `global` fail because those globals are not
+ * available inside `ESModulesEvaluator`'s `AsyncFunction` context.
+ *
+ * This transform detects CJS/UMD content (no top-level `import`/`export`
+ * statements, but contains `exports.xxx` or `module.exports`) and wraps
+ * the code so that:
+ *   1. `module`, `exports`, and `global` are available as local variables.
+ *   2. The module's exports are re-exported as the ES default export.
+ *
+ * The heuristic is intentionally simple and conservative — it only fires
+ * on files that have no ESM syntax at all, which covers the CJS/UMD
+ * packages that appear in the Ember + WarpDrive dependency tree without
+ * misidentifying genuine ESM files.
+ */
+function cjsSsrShimTransform(
+  code: string,
+  _id: string,
+  options?: { ssr?: boolean },
+): { code: string; map: null } | null {
+  // Only apply during SSR transforms
+  if (!options?.ssr) return null;
+
+  // Skip if the file contains any top-level import/export → it's ESM
+  if (/^(?:import\s|export\s|export\{|export default)/m.test(code)) return null;
+
+  // Only wrap files that use CommonJS exports or module.exports
+  if (!/\bexports\s*[.[=]|\bmodule\s*\.\s*exports\b/.test(code)) return null;
+
+  const wrapped = `\
+const __cjs_module__ = { exports: {} };
+const __cjs_exports__ = __cjs_module__.exports;
+const __cjs_global__ = typeof globalThis !== 'undefined' ? globalThis : typeof global !== 'undefined' ? global : {};
+(function(module, exports, global) {
+${code}
+})(__cjs_module__, __cjs_exports__, __cjs_global__);
+export default __cjs_module__.exports;
+`;
+  return { code: wrapped, map: null };
 }
 
 /**
@@ -272,15 +330,14 @@ export function emberSsr(options: EmberSsrPluginOptions = {}): Plugin {
     name: 'vite-ember-ssr',
 
     config(userConfig, env): UserConfig {
-      // Bundle all dependencies for SSR builds to avoid runtime failures
-      // under pnpm's strict node_modules layout when external packages
+      // Bundle all dependencies for SSR builds and dev mode to avoid runtime
+      // failures under pnpm's strict node_modules layout when external packages
       // transitively import virtual Ember/Glimmer packages (e.g.
       // @glimmer/tracking) that only exist inside ember-source.
-      // This is safe to set unconditionally — ssr.noExternal is ignored
-      // for client builds, and SSR bundles run server-side where bundle
-      // size is not a user-facing concern.
+      // In dev mode, the `transform: cjsSsrShimTransform` hook wraps
+      // CJS/UMD packages so they work with ESModulesEvaluator.
       // See: https://github.com/evoactivity/vite-ember-ssr/issues/4
-      const ssrConfig = bundleAllDeps(userConfig);
+      const ssrConfig = ssrDepsConfig(userConfig, env.command);
 
       // During the SSG child build, only set ssr config — don't
       // override build.outDir (the SSG plugin sets it explicitly
@@ -312,6 +369,8 @@ export function emberSsr(options: EmberSsrPluginOptions = {}): Plugin {
     configResolved(config) {
       resolvedConfig = config;
     },
+
+    transform: cjsSsrShimTransform,
 
     generateBundle(_outputOptions, bundle) {
       // Only generate the CSS manifest for client builds.
@@ -467,9 +526,9 @@ export function emberSsg(options: EmberSsgPluginOptions): Plugin {
   return {
     name: 'vite-ember-ssg',
 
-    config(userConfig): UserConfig {
-      // Bundle all dependencies for SSR builds — see bundleAllDeps().
-      const ssrConfig = bundleAllDeps(userConfig);
+    config(userConfig, env): UserConfig {
+      // Bundle all dependencies for SSR builds — see ssrDepsConfig().
+      const ssrConfig = ssrDepsConfig(userConfig, env.command);
 
       // During the SSG child build, only set ssr config — don't touch
       // build.outDir or detect isCombined (irrelevant for child build).
@@ -498,6 +557,8 @@ export function emberSsg(options: EmberSsgPluginOptions): Plugin {
     configResolved(config) {
       resolvedConfig = config;
     },
+
+    transform: cjsSsrShimTransform,
 
     generateBundle(_outputOptions, bundle) {
       // When combined with emberSsr, the SSR plugin already emits
@@ -594,7 +655,7 @@ export function emberSsg(options: EmberSsgPluginOptions): Plugin {
           },
           ssr: {
             // Belt-and-suspenders: the config hooks already call
-            // bundleAllDeps() for the child build, but setting it here
+            // ssrDepsConfig() for the child build, but setting it here
             // in inline config guarantees it even if the user's config
             // file doesn't register the SSR/SSG plugins for some reason.
             noExternal: [/./],

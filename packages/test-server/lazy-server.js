@@ -9,7 +9,11 @@ import Fastify from 'fastify';
 import { readFile } from 'node:fs/promises';
 import { resolve } from 'node:path';
 import { fileURLToPath } from 'node:url';
-import { render, loadCssManifest } from 'vite-ember-ssr/server';
+import {
+  createEmberApp,
+  assembleHTML,
+  loadCssManifest,
+} from 'vite-ember-ssr/server';
 
 const __dirname = fileURLToPath(new URL('.', import.meta.url));
 const port = parseInt(process.env.PORT ?? '4200', 10);
@@ -41,7 +45,9 @@ async function start() {
   // Returns undefined if no manifest exists (app has no lazy CSS).
   const cssManifest = await loadCssManifest(resolve(testAppDist, 'client'));
 
-  const serverEntryPath = resolve(testAppDist, 'server/app-ssr.mjs');
+  const emberApp = await createEmberApp(
+    resolve(testAppDist, 'server/app-ssr.mjs'),
+  );
 
   app.get('*', async (request, reply) => {
     const url = request.url;
@@ -51,18 +57,16 @@ async function start() {
     }
 
     try {
-      const { html, statusCode, error } = await render({
-        url,
-        template,
-        ssrBundlePath: serverEntryPath,
+      const rendered = await emberApp.renderRoute(url, {
         shoebox: false,
         rehydrate: false,
         cssManifest,
       });
+      const html = assembleHTML(template, rendered);
 
-      if (error) app.log.error(error, 'SSR rendering error');
+      if (rendered.error) app.log.error(rendered.error, 'SSR rendering error');
 
-      return reply.code(statusCode).type('text/html').send(html);
+      return reply.code(rendered.statusCode).type('text/html').send(html);
     } catch (e) {
       app.log.error(e, 'SSR request failed');
       return reply
