@@ -204,8 +204,6 @@ function buildRouteCssLinks(
   return links.join('');
 }
 
-// ─── Default export (tinypool worker API) ────────────────────────────
-
 export default async function render(
   options: WorkerRenderOptions,
 ): Promise<WorkerRenderResult> {
@@ -246,6 +244,12 @@ export default async function render(
     // destroying it the container's singletons (including location:none)
     // remain live and can corrupt the next visit.
     instance.destroy();
+
+    // rehydrate mode causes left over rehydration markers to remain in the DOM, so
+    // we clear the body to ensure a clean slate for the next render.
+    if (rehydrate) {
+      document.body.innerHTML = '';
+    }
   } catch (e) {
     error = e instanceof Error ? e : new Error(String(e));
   }
