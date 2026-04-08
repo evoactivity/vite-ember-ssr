@@ -37,6 +37,9 @@ beforeAll(async () => {
     appType: 'custom',
     // Silence Vite's output during tests
     logLevel: 'silent',
+    // Disable the dep optimizer — SSR tests don't serve a browser bundle,
+    // and esbuild's child process crashes on close() producing noisy errors.
+    optimizeDeps: { noDiscovery: true, include: [] },
   });
 
   emberApp = await createEmberApp(ssrEntryPath, {

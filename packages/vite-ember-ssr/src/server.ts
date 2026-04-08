@@ -31,6 +31,7 @@ export interface EmberApplicationInstance {
 
 export interface BootOptions {
   isBrowser: boolean;
+  isInteractive?: boolean;
   document: Document;
   rootElement: Element;
   shouldRender: boolean;

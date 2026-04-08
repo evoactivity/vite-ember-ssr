@@ -196,6 +196,15 @@ describe('SSR component rendering', () => {
     expect(html).toContain('data-category="tooling"');
   });
 
+  it('runs modifiers during SSR on the about route', async () => {
+    const { html } = await renderRoute('/about');
+
+    // The doThing modifier sets textContent to this string
+    expect(html).toContain('This div was modified by an Ember modifier!');
+    // The original static text should be replaced
+    expect(html).not.toMatch(/<div[^>]*>hi<\/div>/);
+  });
+
   it('renders CounterDisplay on the about route too', async () => {
     const { html } = await renderRoute('/about');
 

@@ -223,7 +223,8 @@ export default async function render(
 
   try {
     const bootOptions: BootOptions = {
-      isBrowser: false,
+      isBrowser: true,
+      isInteractive: true,
       document: document as unknown as Document,
       rootElement: document.body as unknown as Element,
       shouldRender: true,

@@ -233,6 +233,15 @@ describe('SSG about route', () => {
     expect(html).toContain('HappyDOM');
   });
 
+  it('runs modifiers during SSG prerendering', async () => {
+    const html = await readSsgHtml('about');
+
+    // The doThing modifier sets textContent to this string
+    expect(html).toContain('This div was modified by an Ember modifier!');
+    // The original static text should be replaced
+    expect(html).not.toMatch(/<div[^>]*>hi<\/div>/);
+  });
+
   it('renders CounterDisplay component', async () => {
     const html = await readSsgHtml('about');
 
