@@ -124,6 +124,44 @@ export interface EmberAppOptions {
   workers?: number;
 
   /**
+   * How often (in milliseconds) to recycle all workers in the pool.
+   *
+   * When set, `pool.recycleWorkers()` is called on this interval —
+   * tinypool waits for all in-flight tasks to complete, then replaces
+   * every worker with a fresh one. This bounds memory growth in
+   * long-running processes where workers accumulate state over time.
+   *
+   * Set to `0` or omit to disable periodic recycling.
+   *
+   * Ignored when `dev` is provided.
+   *
+   * @example
+   * // Recycle workers every hour
+   * await createEmberApp(bundlePath, { recycleWorkerInterval: 60 * 60 * 1000 });
+   */
+  recycleWorkerInterval?: number;
+
+  /**
+   * When `true`, each render task is handled by a freshly-started worker.
+   *
+   * This maps directly to tinypool's `isolateWorkers` option. The worker is
+   * replaced after every task, so module-level state (caches, singletons,
+   * open handles) never bleeds between requests. The trade-off is that every
+   * render pays the full worker-startup and bundle-import cost instead of
+   * reusing a warm worker.
+   *
+   * For most apps the default (long-lived, warm workers) is preferred.
+   * Enable isolation when you need strict request-level process boundaries,
+   * e.g. when the SSR bundle keeps global state that cannot be reset between
+   * renders.
+   *
+   * Ignored when `dev` is provided.
+   *
+   * @default false
+   */
+  isolateWorkers?: boolean;
+
+  /**
    * Dev mode options. When provided, skips tinypool and renders in-process
    * via Vite's `ssrLoadModule` so HMR changes are picked up on every render.
    */
@@ -203,11 +241,28 @@ export async function createEmberApp(
     filename: WORKER_PATH,
     minThreads: workerCount,
     maxThreads: workerCount,
+    isolateWorkers: options.isolateWorkers ?? false,
     // Pass the bundle URL so the worker can import it eagerly at startup,
     // paying the cold-start cost once (at server init) rather than on the
     // first render request.
     workerData: { ssrBundlePath: bundleURL },
   });
+
+  // Schedule periodic worker recycling when requested.  pool.recycleWorkers()
+  // waits for all in-flight renders to finish before replacing every worker
+  // with a fresh one, bounding memory growth in long-running processes.
+  let recycleTimer: ReturnType<typeof setInterval> | undefined;
+  const recycleInterval = options.recycleWorkerInterval ?? 0;
+  if (recycleInterval > 0) {
+    recycleTimer = setInterval(() => {
+      pool.recycleWorkers().catch(() => {
+        // recycleWorkers rejects only if the pool is already being destroyed;
+        // swallow the error to avoid an unhandled rejection on shutdown.
+      });
+    }, recycleInterval);
+    // Allow the process to exit naturally without waiting for the next tick.
+    recycleTimer.unref();
+  }
 
   return {
     async renderRoute(
@@ -236,6 +291,7 @@ export async function createEmberApp(
     },
 
     async destroy(): Promise<void> {
+      clearInterval(recycleTimer);
       await pool.destroy();
     },
   };
