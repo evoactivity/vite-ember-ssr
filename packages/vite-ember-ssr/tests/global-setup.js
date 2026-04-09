@@ -125,7 +125,11 @@ async function needsBuild(root, srcDirs, distDir, extraSrcDirs = []) {
   }
 
   // Check config files that affect builds
-  for (const configFile of ['vite.config.mjs', 'vite.config.ts', 'package.json']) {
+  for (const configFile of [
+    'vite.config.mjs',
+    'vite.config.ts',
+    'package.json',
+  ]) {
     try {
       const s = await stat(resolve(root, configFile));
       if (s.mtimeMs > distTime) return true;
@@ -171,7 +175,12 @@ export async function setup() {
   for (const app of testApps) {
     let needs = libNeedsBuild; // if lib rebuilt, always rebuild apps
     if (!needs) {
-      needs = await needsBuild(app.root, app.srcDirs, app.distDir, app.extraSrcDirs || []);
+      needs = await needsBuild(
+        app.root,
+        app.srcDirs,
+        app.distDir,
+        app.extraSrcDirs || [],
+      );
     }
 
     if (needs) {
@@ -182,13 +191,18 @@ export async function setup() {
   }
 
   if (skipTasks.length > 0) {
-    console.log(`  Skipping ${skipTasks.length} up-to-date app(s): ${skipTasks.map((a) => a.name).join(', ')}`);
+    console.log(
+      `  Skipping ${skipTasks.length} up-to-date app(s): ${skipTasks.map((a) => a.name).join(', ')}`,
+    );
   }
 
   // 3. Build needed test apps with limited concurrency to avoid
   //    overwhelming CI runners (which typically have only 2 cores).
   if (buildTasks.length > 0) {
-    const maxConcurrency = Math.min(buildTasks.length, Math.max(2, Math.floor(availableParallelism() / 2)));
+    const maxConcurrency = Math.min(
+      buildTasks.length,
+      Math.max(2, Math.floor(availableParallelism() / 2)),
+    );
     console.log(
       `  Building ${buildTasks.length} app(s) (concurrency: ${maxConcurrency}): ${buildTasks.map((a) => a.name).join(', ')}...`,
     );
