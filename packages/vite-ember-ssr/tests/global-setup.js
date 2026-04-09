@@ -8,6 +8,7 @@ import { execSync, exec } from 'node:child_process';
 import { resolve } from 'node:path';
 import { fileURLToPath } from 'node:url';
 import { stat, readdir } from 'node:fs/promises';
+import { availableParallelism } from 'node:os';
 
 const __dirname = fileURLToPath(new URL('.', import.meta.url));
 const packagesRoot = resolve(__dirname, '../..');
@@ -184,23 +185,35 @@ export async function setup() {
     console.log(`  Skipping ${skipTasks.length} up-to-date app(s): ${skipTasks.map((a) => a.name).join(', ')}`);
   }
 
-  // 3. Build all needed test apps in parallel
+  // 3. Build needed test apps with limited concurrency to avoid
+  //    overwhelming CI runners (which typically have only 2 cores).
   if (buildTasks.length > 0) {
-    console.log(`  Building ${buildTasks.length} app(s) in parallel: ${buildTasks.map((a) => a.name).join(', ')}...`);
-
-    const results = await Promise.allSettled(
-      buildTasks.map(async (app) => {
-        const start = Date.now();
-        await runAsync(app.cmd, app.root);
-        const elapsed = ((Date.now() - start) / 1000).toFixed(1);
-        console.log(`  ✓ ${app.name} (${elapsed}s)`);
-      }),
+    const maxConcurrency = Math.min(buildTasks.length, Math.max(2, Math.floor(availableParallelism() / 2)));
+    console.log(
+      `  Building ${buildTasks.length} app(s) (concurrency: ${maxConcurrency}): ${buildTasks.map((a) => a.name).join(', ')}...`,
     );
 
-    const failures = results.filter((r) => r.status === 'rejected');
+    const failures = [];
+    let i = 0;
+    async function next() {
+      while (i < buildTasks.length) {
+        const app = buildTasks[i++];
+        const start = Date.now();
+        try {
+          await runAsync(app.cmd, app.root);
+          const elapsed = ((Date.now() - start) / 1000).toFixed(1);
+          console.log(`  ✓ ${app.name} (${elapsed}s)`);
+        } catch (error) {
+          failures.push(error);
+        }
+      }
+    }
+
+    await Promise.all(Array.from({ length: maxConcurrency }, () => next()));
+
     if (failures.length > 0) {
       throw new Error(
-        `${failures.length} test app build(s) failed:\n${failures.map((f) => f.reason?.message).join('\n')}`,
+        `${failures.length} test app build(s) failed:\n${failures.map((f) => f.message).join('\n')}`,
       );
     }
   }
