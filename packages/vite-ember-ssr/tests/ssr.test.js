@@ -563,3 +563,73 @@ describe('SSR shoebox (fetch capture)', () => {
     expect(html).toContain('id="ssr-body-end"');
   }, 15_000);
 });
+
+// ─── Body attributes ─────────────────────────────────────────────────
+
+describe('body attributes', () => {
+  it('returns bodyAttrs as an empty object when no attributes are set', async () => {
+    const rendered = await app.renderRoute('/', { rehydrate: true });
+
+    expect(rendered.bodyAttrs).toBeDefined();
+    expect(typeof rendered.bodyAttrs).toBe('object');
+  });
+
+  it('assembleHTML applies bodyAttrs to the <body> tag', () => {
+    const tmpl = '<html><head><!-- VITE_EMBER_SSR_HEAD --></head><body><!-- VITE_EMBER_SSR_BODY --></body></html>';
+    const rendered = {
+      head: '<title>Test</title>',
+      body: '<div>content</div>',
+      bodyAttrs: { 'data-theme': 'dark', class: 'ember-application' },
+    };
+    const html = assembleHTML(tmpl, rendered);
+
+    expect(html).toContain('<body data-theme="dark" class="ember-application">');
+    expect(html).toContain('<div>content</div>');
+    expect(html).toContain('<title>Test</title>');
+  });
+
+  it('assembleHTML preserves existing body attributes', () => {
+    const tmpl = '<html><head><!-- VITE_EMBER_SSR_HEAD --></head><body id="app"><!-- VITE_EMBER_SSR_BODY --></body></html>';
+    const rendered = {
+      head: '',
+      body: '<div>content</div>',
+      bodyAttrs: { 'data-theme': 'light' },
+    };
+    const html = assembleHTML(tmpl, rendered);
+
+    expect(html).toContain('id="app"');
+    expect(html).toContain('data-theme="light"');
+  });
+
+  it('assembleHTML handles empty bodyAttrs gracefully', () => {
+    const tmpl = '<html><head><!-- VITE_EMBER_SSR_HEAD --></head><body><!-- VITE_EMBER_SSR_BODY --></body></html>';
+    const rendered = { head: '', body: '<div>hi</div>', bodyAttrs: {} };
+    const html = assembleHTML(tmpl, rendered);
+
+    expect(html).toContain('<body>');
+    expect(html).not.toContain('<body >');
+  });
+
+  it('assembleHTML escapes attribute values', () => {
+    const tmpl = '<html><head><!-- VITE_EMBER_SSR_HEAD --></head><body><!-- VITE_EMBER_SSR_BODY --></body></html>';
+    const rendered = {
+      head: '',
+      body: '',
+      bodyAttrs: { 'data-info': 'he said "hello"' },
+    };
+    const html = assembleHTML(tmpl, rendered);
+
+    expect(html).toContain('data-info="he said &quot;hello&quot;"');
+  });
+
+  it('bodyAttrs do not bleed between renders', async () => {
+    // First render
+    const first = await app.renderRoute('/');
+    // Second render
+    const second = await app.renderRoute('/about');
+
+    // Both should have bodyAttrs defined (even if empty)
+    expect(first.bodyAttrs).toBeDefined();
+    expect(second.bodyAttrs).toBeDefined();
+  });
+});
