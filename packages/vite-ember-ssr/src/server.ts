@@ -70,6 +70,8 @@ export interface RenderResult {
   head: string;
   /** Rendered HTML from the document's <body> */
   body: string;
+  /** Attributes set on the <body> element during rendering (e.g., data-theme, class) */
+  bodyAttrs: Record<string, string>;
   /** HTTP status code (200 by default) */
   statusCode: number;
   /** Any error that occurred during rendering */
@@ -279,6 +281,7 @@ export async function createEmberApp(
       })) as {
         head: string;
         body: string;
+        bodyAttrs: Record<string, string>;
         statusCode: number;
         error?: string;
       };
@@ -286,6 +289,7 @@ export async function createEmberApp(
       return {
         head: result.head,
         body: result.body,
+        bodyAttrs: result.bodyAttrs ?? {},
         statusCode: result.statusCode,
         error: result.error ? new Error(result.error) : undefined,
       };
@@ -307,15 +311,19 @@ const SSR_MARKER_REGEX = /<!-- VITE_EMBER_SSR_(HEAD|BODY) -->/g;
 /**
  * Assembles the final HTML response by inserting rendered content
  * into the index.html template.
+ *
+ * When `rendered.bodyAttrs` is provided, attributes set on the `<body>`
+ * element during SSR (e.g., `data-theme`, `class`) are applied to the
+ * `<body>` tag in the template HTML.
  */
 export function assembleHTML(
   template: string,
-  rendered: Pick<RenderResult, 'head' | 'body'>,
+  rendered: Pick<RenderResult, 'head' | 'body' | 'bodyAttrs'>,
 ): string {
   let headReplaced = false;
   let bodyReplaced = false;
 
-  return template.replace(SSR_MARKER_REGEX, (_match, tag: string) => {
+  let html = template.replace(SSR_MARKER_REGEX, (_match, tag: string) => {
     if (tag === 'HEAD' && !headReplaced) {
       headReplaced = true;
       return rendered.head;
@@ -326,6 +334,17 @@ export function assembleHTML(
     }
     return '';
   });
+
+  // Apply body attributes from SSR rendering
+  const attrs = rendered.bodyAttrs;
+  if (attrs && Object.keys(attrs).length > 0) {
+    const attrString = Object.entries(attrs)
+      .map(([key, value]) => `${key}="${value.replace(/"/g, '&quot;')}"`)
+      .join(' ');
+    html = html.replace(/<body([^>]*)>/, `<body$1 ${attrString}>`);
+  }
+
+  return html;
 }
 
 /**
