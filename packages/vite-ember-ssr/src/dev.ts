@@ -160,7 +160,12 @@ export function createDevEmberApp(
       url: string,
       renderOptions: RenderRouteOptions = {},
     ): Promise<RenderResult> {
-      const { shoebox = false, rehydrate = false, cssManifest } = renderOptions;
+      const {
+        shoebox = false,
+        rehydrate = false,
+        cssManifest,
+        headers: forwardHeaders,
+      } = renderOptions;
 
       // Fresh Window per request — no state bleeds between renders in dev.
       const win = new Window({
@@ -183,15 +188,28 @@ export function createDevEmberApp(
         ? new Map()
         : null;
 
-      if (shoebox) {
+      if (shoebox || forwardHeaders) {
         globalThis.fetch = async (
           input: RequestInfo | URL,
           init?: RequestInit,
         ) => {
-          const request = new Request(input, init);
+          // Inject forwarded request headers into outgoing fetches
+          let effectiveInit = init;
+          if (forwardHeaders) {
+            effectiveInit = { ...init };
+            const existingHeaders = new Headers(effectiveInit.headers);
+            for (const [key, value] of Object.entries(forwardHeaders)) {
+              if (!existingHeaders.has(key)) {
+                existingHeaders.set(key, value);
+              }
+            }
+            effectiveInit.headers = existingHeaders;
+          }
+
+          const request = new Request(input, effectiveInit);
           if (request.method.toUpperCase() !== 'GET')
-            return realFetch(input, init);
-          const response = await realFetch(input, init);
+            return realFetch(request);
+          const response = await realFetch(request);
           if (shoeboxEntries) {
             try {
               const clone = response.clone();
@@ -258,7 +276,7 @@ export function createDevEmberApp(
       } catch (e) {
         error = e instanceof Error ? e : new Error(String(e));
       } finally {
-        if (shoebox) globalThis.fetch = realFetch;
+        if (shoebox || forwardHeaders) globalThis.fetch = realFetch;
         restoreGlobals(savedGlobals);
         await win.happyDOM?.close?.();
       }
