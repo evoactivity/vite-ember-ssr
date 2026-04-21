@@ -63,6 +63,23 @@ export interface RenderRouteOptions {
    * client build (written as `css-manifest.json`).
    */
   cssManifest?: CssManifest;
+
+  /**
+   * HTTP headers from the incoming request to forward to fetch() calls
+   * made during SSR rendering.
+   *
+   * Use this to forward authentication cookies, authorization tokens,
+   * or other request-scoped headers so the SSR render can make
+   * authenticated API calls on behalf of the user.
+   *
+   * Only the specified headers are forwarded. Common usage:
+   * ```js
+   * const rendered = await app.renderRoute(req.url, {
+   *   headers: { cookie: req.headers.cookie },
+   * });
+   * ```
+   */
+  headers?: Record<string, string>;
 }
 
 export interface RenderResult {
@@ -276,6 +293,7 @@ export async function createEmberApp(
         shoebox: renderOptions.shoebox ?? false,
         rehydrate: renderOptions.rehydrate ?? false,
         cssManifest: renderOptions.cssManifest ?? null,
+        headers: renderOptions.headers ?? null,
       })) as {
         head: string;
         body: string;

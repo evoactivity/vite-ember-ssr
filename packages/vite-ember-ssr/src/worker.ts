@@ -33,6 +33,7 @@ export interface WorkerRenderOptions {
   shoebox: boolean;
   rehydrate: boolean;
   cssManifest: CssManifest | null;
+  headers: Record<string, string> | null;
 }
 
 export interface WorkerRenderResult {
@@ -126,36 +127,67 @@ const app: EmberApplication = startupMod.createSsrApp();
 const SHOEBOX_SCRIPT_ID = 'vite-ember-ssr-shoebox';
 
 // The fetch interceptor is installed once at startup. globalThis.fetch
-// never changes. Each render passes a fresh entries Map so there is no
-// bleed between requests.
+// never changes. Each render passes fresh per-render state so there is
+// no bleed between requests.
 const realFetch = globalThis.fetch;
 let shoeboxEntries: Map<string, ShoeboxEntry> | null = null;
+let requestHeaders: Record<string, string> | null = null;
 
 const interceptedFetch: typeof fetch = async (input, init) => {
   const request = new Request(input, init);
+
+  // Inject forwarded request headers (e.g., cookies) into outgoing fetches.
+  // Only applies to requests without an existing cookie/authorization header,
+  // so explicit headers in app code are not overwritten.
+  if (requestHeaders) {
+    const mergedInit = { ...init };
+    const existingHeaders = new Headers(mergedInit.headers);
+    for (const [key, value] of Object.entries(requestHeaders)) {
+      if (!existingHeaders.has(key)) {
+        existingHeaders.set(key, value);
+      }
+    }
+    mergedInit.headers = existingHeaders;
+    const mergedRequest = new Request(input, mergedInit);
+
+    if (mergedRequest.method.toUpperCase() !== 'GET') return realFetch(mergedRequest);
+    const response = await realFetch(mergedRequest);
+    if (shoeboxEntries) {
+      captureShoeboxEntry(mergedRequest, response);
+    }
+    return response;
+  }
+
   if (request.method.toUpperCase() !== 'GET') return realFetch(input, init);
   const response = await realFetch(input, init);
   if (shoeboxEntries) {
-    try {
-      const clone = response.clone();
-      const body = await clone.text();
-      const headers: Record<string, string> = {};
-      clone.headers.forEach((v, k) => {
-        headers[k] = v;
-      });
-      shoeboxEntries.set(request.url, {
-        url: request.url,
-        status: clone.status,
-        statusText: clone.statusText,
-        headers,
-        body,
-      });
-    } catch {
-      /* skip */
-    }
+    captureShoeboxEntry(request, response);
   }
   return response;
 };
+
+async function captureShoeboxEntry(
+  request: Request,
+  response: Response,
+): Promise<void> {
+  try {
+    const clone = response.clone();
+    const body = await clone.text();
+    const headers: Record<string, string> = {};
+    clone.headers.forEach((v, k) => {
+      headers[k] = v;
+    });
+    shoeboxEntries?.set(request.url, {
+      url: request.url,
+      status: clone.status,
+      statusText: clone.statusText,
+      headers,
+      body,
+    });
+  } catch {
+    /* skip */
+  }
+}
 
 // Install once — never needs to be restored.
 globalThis.fetch = interceptedFetch;
@@ -207,7 +239,7 @@ function buildRouteCssLinks(
 export default async function render(
   options: WorkerRenderOptions,
 ): Promise<WorkerRenderResult> {
-  const { url, shoebox, rehydrate, cssManifest } = options;
+  const { url, shoebox, rehydrate, cssManifest, headers } = options;
 
   // Use the long-lived document directly — no new Window, no globalThis swap.
   const document = win.document;
@@ -215,6 +247,10 @@ export default async function render(
   // Give the interceptor a fresh Map for this render, or null if shoebox
   // is disabled, so entries never bleed between requests.
   shoeboxEntries = shoebox ? new Map() : null;
+
+  // Forward request headers (e.g., cookies) to outgoing fetch calls
+  // for this render only. Cleared after the render completes.
+  requestHeaders = headers;
 
   let head = '';
   let body = '';
@@ -254,6 +290,9 @@ export default async function render(
   } catch (e) {
     error = e instanceof Error ? e : new Error(String(e));
   }
+
+  // Clear per-render state to prevent bleed between requests.
+  requestHeaders = null;
 
   const shoeboxHTML =
     shoeboxEntries && shoeboxEntries.size > 0
