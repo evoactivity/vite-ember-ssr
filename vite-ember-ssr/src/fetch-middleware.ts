@@ -101,6 +101,13 @@ export function shoeboxMiddleware(
       const body = await clone.text();
       const headers: Record<string, string> = {};
       clone.headers.forEach((v, k) => {
+        // Never serialize Set-Cookie into the shoebox: it would leak the
+        // origin's (often HttpOnly) auth cookie into the rendered HTML, where
+        // any script can read it and — for a cached/shared response — hand one
+        // user's session to another. The client replays entries as
+        // JS-constructed Responses whose Set-Cookie the browser ignores, so it
+        // is inert here anyway.
+        if (k.toLowerCase() === 'set-cookie') return;
         headers[k] = v;
       });
       entries.set(request.url, {
