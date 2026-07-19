@@ -91,8 +91,14 @@ export function shoeboxMiddleware(
   getEntries: () => Map<string, ShoeboxEntry> | null,
 ): FetchMiddleware {
   return async (request, next) => {
-    const response = await next(request);
+    // Capture the CURRENT render's entries map before awaiting the response.
+    // A fetch left in flight by a timed-out render can resolve while a LATER
+    // render is active; calling getEntries() after the await would return
+    // that later render's map and leak this response into the wrong render's
+    // shoebox. With the reference captured up front, a late write lands in
+    // the dead render's map, which is never serialized.
     const entries = getEntries();
+    const response = await next(request);
     if (!entries) return response;
     if (request.method.toUpperCase() !== 'GET') return response;
 

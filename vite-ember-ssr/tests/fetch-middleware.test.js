@@ -153,6 +153,35 @@ describe('shoeboxMiddleware', () => {
     expect(entry.headers['content-type']).toBe('text/plain');
   });
 
+  it('captures into the entries map active when the fetch STARTED, not when it resolved (cross-render leak)', async () => {
+    // Simulates an orphan fetch: started during render A (whose settled()
+    // timed out), resolving after render B has already swapped in its own
+    // entries map. The entry must land in A's dead map, never in B's.
+    const renderAEntries = new Map();
+    const renderBEntries = new Map();
+    let activeEntries = renderAEntries;
+
+    let releaseResponse;
+    const terminal = () =>
+      new Promise((resolve) => {
+        releaseResponse = () => resolve(new Response('private-of-A'));
+      });
+
+    const fn = compose([shoeboxMiddleware(() => activeEntries)], terminal);
+
+    const inFlight = fn('https://api.example.com/private');
+    // Render A dies; render B begins and installs its own map.
+    activeEntries = renderBEntries;
+    releaseResponse();
+    await inFlight;
+
+    expect(renderBEntries.size).toBe(0);
+    expect(renderAEntries.size).toBe(1);
+    expect(renderAEntries.get('https://api.example.com/private').body).toBe(
+      'private-of-A',
+    );
+  });
+
   it('does NOT capture when entries map is null', async () => {
     const terminal = async () => new Response('hello');
     const result = await compose(
