@@ -76,6 +76,7 @@ const BROWSER_GLOBALS = [
   'PointerEvent',
   'IntersectionObserver',
   'ResizeObserver',
+  'getComputedStyle',
   'CSSStyleSheet',
 ] as const;
 
