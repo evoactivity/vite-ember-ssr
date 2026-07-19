@@ -1,15 +1,11 @@
 {
   "solution": {
     "vite-ember-ssr": {
-      "impact": "minor",
-      "oldVersion": "0.3.0",
-      "newVersion": "0.4.0",
+      "impact": "patch",
+      "oldVersion": "0.4.0",
+      "newVersion": "0.4.1",
       "tagName": "latest",
       "constraints": [
-        {
-          "impact": "minor",
-          "reason": "Appears in changelog section :rocket: Enhancement"
-        },
         {
           "impact": "patch",
           "reason": "Appears in changelog section :bug: Bug Fix"
@@ -18,5 +14,5 @@
       "pkgJSONPath": "./vite-ember-ssr/package.json"
     }
   },
-  "description": "## Release (2026-07-19)\n\n* vite-ember-ssr 0.4.0 (minor)\n\n#### :rocket: Enhancement\n* `vite-ember-ssr`\n  * [#17](https://github.com/evoactivity/vite-ember-ssr/pull/17) feat: warn loudly when the SSR bundle exports no settled function ([@st-h](https://github.com/st-h))\n\n#### :bug: Bug Fix\n* `vite-ember-ssr`\n  * [#20](https://github.com/evoactivity/vite-ember-ssr/pull/20) feat: add getComputedStyle to global browser constants ([@evoactivity](https://github.com/evoactivity))\n  * [#13](https://github.com/evoactivity/vite-ember-ssr/pull/13) fix: destroy the per-visit ApplicationInstance even when render throws ([@st-h](https://github.com/st-h))\n  * [#15](https://github.com/evoactivity/vite-ember-ssr/pull/15) fix: bind shoebox capture to the render that started the fetch ([@st-h](https://github.com/st-h))\n\n#### Committers: 2\n- Liam ([@evoactivity](https://github.com/evoactivity))\n- Steve ([@st-h](https://github.com/st-h))\n"
+  "description": "## Release (2026-07-19)\n\n* vite-ember-ssr 0.4.1 (patch)\n\n#### :bug: Bug Fix\n* `vite-ember-ssr`\n  * [#21](https://github.com/evoactivity/vite-ember-ssr/pull/21) feat: add 'getComputedStyle' to browser globals ([@evoactivity](https://github.com/evoactivity))\n\n#### Committers: 1\n- Liam ([@evoactivity](https://github.com/evoactivity))\n"
 }
