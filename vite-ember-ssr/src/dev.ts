@@ -43,7 +43,8 @@ import {
 } from './fetch-middleware.js';
 
 // ─── Constants ────────────────────────────────────────────────────────
-
+// @todo I've seen happydom has a global registration method, use that
+// instead of manually installing globals.
 const BROWSER_GLOBALS = [
   'window',
   'document',
@@ -69,6 +70,7 @@ const BROWSER_GLOBALS = [
   'IntersectionObserver',
   'ResizeObserver',
   'CSSStyleSheet',
+  'getComputedStyle',
 ] as const;
 
 const SHOEBOX_SCRIPT_ID = 'vite-ember-ssr-shoebox';
