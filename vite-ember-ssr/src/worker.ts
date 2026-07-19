@@ -262,6 +262,7 @@ export default async function render(
   let bodyAttrs: Record<string, string> = {};
   let cssLinks = '';
   let error: Error | undefined;
+  let instance: EmberApplicationInstance | undefined;
 
   try {
     const bootOptions: BootOptions = {
@@ -273,7 +274,7 @@ export default async function render(
       _renderMode: 'serialize',
     };
 
-    const instance = await app.visit(url, bootOptions);
+    instance = await app.visit(url, bootOptions);
 
     // Wait for the app to settle (test waiters, run loop, pending timers, etc.)
     // before reading the DOM. Falls back to a microtask drain when the SSR
@@ -290,25 +291,34 @@ export default async function render(
         bodyAttrs[attr.name] = attr.value;
       }
     }
+  } catch (e) {
+    error = e instanceof Error ? e : new Error(String(e));
+  } finally {
+    // Destroy the instance so its container is torn down cleanly. app.visit()
+    // creates a fresh ApplicationInstance per call; without destroying it the
+    // container's singletons (including location:none) remain live and can
+    // corrupt the next visit. This MUST run even when the render above throws
+    // (settle timeout, CSS build, DOM read) — otherwise the leaked instance
+    // accumulates in the long-lived worker. `instance` is undefined when
+    // app.visit() itself threw before assigning it. Guard the call: a destroy
+    // that throws inside this finally would skip the DOM reset below and mask
+    // the render's own error.
+    try {
+      instance?.destroy();
+    } catch {
+      /* instance teardown failed — the DOM reset below must still run */
+    }
 
-    // Destroy the instance so its container is torn down cleanly.
-    // app.visit() creates a fresh ApplicationInstance per call; without
-    // destroying it the container's singletons (including location:none)
-    // remain live and can corrupt the next visit.
-    instance.destroy();
-
-    // Serialize mode leaves rehydration markers in the DOM, so we clear
-    // the body to ensure a clean slate for the next render.
-    document.body.innerHTML = '';
-
-    // Clear body attributes so they don't bleed into the next render.
+    // Serialize mode leaves rehydration markers in the DOM; reset the body so
+    // the next render starts from a clean slate regardless of success/failure.
     if (document.body) {
+      document.body.innerHTML = '';
+
+      // Clear body attributes so they don't bleed into the next render.
       for (const attr of Array.from(document.body.attributes)) {
         document.body.removeAttribute(attr.name);
       }
     }
-  } catch (e) {
-    error = e instanceof Error ? e : new Error(String(e));
   }
 
   const shoeboxHTML =
