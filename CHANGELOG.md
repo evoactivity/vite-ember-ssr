@@ -2,6 +2,17 @@
 
 ## Release (2026-07-19)
 
+* vite-ember-ssr 0.4.1 (patch)
+
+#### :bug: Bug Fix
+* `vite-ember-ssr`
+  * [#21](https://github.com/evoactivity/vite-ember-ssr/pull/21) feat: add 'getComputedStyle' to browser globals ([@evoactivity](https://github.com/evoactivity))
+
+#### Committers: 1
+- Liam ([@evoactivity](https://github.com/evoactivity))
+
+## Release (2026-07-19)
+
 * vite-ember-ssr 0.4.0 (minor)
 
 #### :rocket: Enhancement
