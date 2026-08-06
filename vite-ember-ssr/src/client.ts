@@ -135,6 +135,16 @@ export function installShoebox(): boolean {
     return Promise.resolve(response);
   };
 
+  // Advertise the original fetch's source so the wrapper is transparent to
+  // native-fetch detection. Some libraries sniff `fetch.toString()` to decide
+  // whether a mock environment is active and change behavior on it — e.g.
+  // warp-drive's dev builds assume mutable (Mirage-style) response headers and
+  // crash on real responses ("Headers are immutable") while the shoebox
+  // interceptor is installed. The wrapper delegates to the original fetch for
+  // everything it doesn't serve, so reporting its source is accurate enough.
+  const originalSource = _originalFetch.toString();
+  globalThis.fetch.toString = () => originalSource;
+
   return true;
 }
 

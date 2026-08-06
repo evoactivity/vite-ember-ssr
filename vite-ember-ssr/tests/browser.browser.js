@@ -141,6 +141,53 @@ test.describe('Shoebox prevents duplicate fetches on first client load', () => {
     );
   });
 
+  test('shoebox interceptor is transparent to native-fetch detection', async ({
+    page,
+  }) => {
+    // Libraries sniff fetch.toString() to detect mock environments (e.g.
+    // warp-drive's dev builds, which then treat response headers as mutable
+    // and crash on real immutable ones). The interceptor installs and
+    // uninstalls itself quickly, so trap every assignment to globalThis.fetch
+    // and assert each assigned function still reports the native source.
+    await page.addInitScript(() => {
+      const assigned = [];
+      let current = globalThis.fetch;
+      window.__nativeFetchSource = current.toString();
+      window.__assignedFetches = assigned;
+      Object.defineProperty(globalThis, 'fetch', {
+        configurable: true,
+        get: () => current,
+        set: (value) => {
+          assigned.push(value);
+          current = value;
+        },
+      });
+    });
+
+    await page.goto('/pokemon-fetch');
+    await page.waitForFunction(
+      () => document.body.classList.contains('ember-application'),
+      { timeout: 15_000 },
+    );
+    // Shoebox fully consumed → interceptor was installed and restored
+    await page.waitForFunction(
+      () => !document.getElementById('vite-ember-ssr-shoebox'),
+      { timeout: 5_000 },
+    );
+
+    const { nativeSource, sources } = await page.evaluate(() => ({
+      nativeSource: window.__nativeFetchSource,
+      sources: window.__assignedFetches.map((fn) => fn.toString()),
+    }));
+
+    // installShoebox() assigned the interceptor, cleanupShoebox() restored
+    // the original — both must be indistinguishable from native fetch.
+    expect(sources.length).toBeGreaterThanOrEqual(2);
+    for (const source of sources) {
+      expect(source).toBe(nativeSource);
+    }
+  });
+
   test('no PokeAPI requests on initial pokemon-fetch load (data served from shoebox)', async ({
     page,
   }) => {
