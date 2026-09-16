@@ -45,6 +45,13 @@ const testApps = [
     distDir: 'dist',
   },
   {
+    name: 'test-app-routes-layout-ssg',
+    root: resolve(packagesRoot, 'test-app-routes-layout-ssg'),
+    cmd: 'pnpm build',
+    srcDirs: ['app'],
+    distDir: 'dist',
+  },
+  {
     name: 'test-app-lazy-ssr',
     root: resolve(packagesRoot, 'test-app-lazy-ssr'),
     cmd: 'pnpm build:all',

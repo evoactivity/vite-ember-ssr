@@ -25,9 +25,13 @@
  */
 
 import { Window } from 'happy-dom';
+import {
+  buildCssLinks,
+  startImportTracking,
+  stopImportTracking,
+} from './css-links.js';
 import type {
   EmberApplication,
-  EmberApplicationInstance,
   BootOptions,
   RenderRouteOptions,
   RenderResult,
@@ -118,37 +122,6 @@ function serializeShoebox(entries: ShoeboxEntry[]): string {
   if (entries.length === 0) return '';
   const safeJson = JSON.stringify(entries).replace(/<\/(script)/gi, '<\\/$1');
   return `<script type="application/json" id="${SHOEBOX_SCRIPT_ID}">${safeJson}</script>`;
-}
-
-function buildRouteCssLinks(
-  manifest: NonNullable<RenderRouteOptions['cssManifest']>,
-  instance: EmberApplicationInstance,
-): string {
-  if (!instance.lookup) return '';
-  let routeName: string | undefined;
-  try {
-    const router = instance.lookup('service:router') as
-      | { currentRouteName?: string }
-      | undefined;
-    routeName = router?.currentRouteName ?? undefined;
-  } catch {
-    return '';
-  }
-  if (!routeName) return '';
-
-  const segments = routeName.split('.');
-  const seen = new Set<string>();
-  const links: string[] = [];
-  for (let i = 1; i <= segments.length; i++) {
-    const cssFiles = manifest[segments.slice(0, i).join('.')];
-    if (!cssFiles) continue;
-    for (const href of cssFiles) {
-      if (seen.has(href)) continue;
-      seen.add(href);
-      links.push(`<link rel="stylesheet" href="${href}">`);
-    }
-  }
-  return links.join('');
 }
 
 // ─── Dev EmberApp factory ─────────────────────────────────────────────
@@ -259,6 +232,9 @@ export function createDevEmberApp(
           _renderMode: 'serialize',
         };
 
+        // Every import() during the visit is matched against the CSS manifest
+        const imports = startImportTracking();
+
         const instance = await app.visit(url, bootOptions);
 
         // Wait for the app to settle (test waiters, run loop, pending timers).
@@ -303,9 +279,7 @@ export function createDevEmberApp(
           await new Promise<void>((resolve) => setTimeout(resolve, 0));
         }
 
-        if (cssManifest) {
-          cssLinks = buildRouteCssLinks(cssManifest, instance);
-        }
+        cssLinks = buildCssLinks(cssManifest, imports);
 
         head = document.head?.innerHTML ?? '';
         body = document.body?.innerHTML ?? '';
@@ -321,6 +295,7 @@ export function createDevEmberApp(
       } catch (e) {
         error = e instanceof Error ? e : new Error(String(e));
       } finally {
+        stopImportTracking();
         if (middlewareActive) globalThis.fetch = realFetch;
         restoreGlobals(savedGlobals);
         await win.happyDOM?.close?.();

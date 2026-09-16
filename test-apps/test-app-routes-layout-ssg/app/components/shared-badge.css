@@ -1,0 +1,7 @@
+.shared-badge {
+  display: inline-block;
+  padding: 0.25rem 0.5rem;
+  border-radius: 4px;
+  background: #e0e0e0;
+  font-size: 0.875rem;
+}

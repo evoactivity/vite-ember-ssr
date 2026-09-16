@@ -1,5 +1,6 @@
 import type { Plugin, PluginOption, ResolvedConfig, UserConfig } from 'vite';
-import { join, dirname } from 'node:path';
+import { join, dirname, relative, sep } from 'node:path';
+import MagicString from 'magic-string';
 import {
   mkdir,
   writeFile,
@@ -21,57 +22,37 @@ export const SSR_BODY_MARKER = '<!-- VITE_EMBER_SSR_BODY -->';
 export const CSS_MANIFEST_FILENAME = 'css-manifest.json';
 
 /**
- * The CSS manifest maps Ember route names to the CSS files that Vite
- * extracted from their lazy-loaded template chunks during the client build.
+ * The CSS manifest maps each dynamically imported module
+ * to the CSS files Vite extracted for its chunk in the client build.
  *
- * Route names use Ember's dot-separated convention for nested routes:
- * - `about` for `app/templates/about.gts`
- * - `blog.post` for `app/templates/blog/post.gts`
+ * Keys are module paths relative to the Vite root:
  *
- * Example:
- * ```json
- * {
- *   "about": ["/assets/about-VWk4xp3e.css"]
- * }
- * ```
+ *   "app/templates/about.gts" → ["/assets/about-VWk4xp3e.css"]
  *
- * During SSR, the renderer queries the active route name from Ember's
- * router service and looks up CSS files to inject as `<link>` tags.
+ * During SSR, every `import()` the app performs while it renders a URL
+ * is recorded. See `trackDynamicImports`.
+ *
+ * The recorded modules are looked up here,
+ * and their CSS is injected as `<link>` tags.
  */
 export type CssManifest = Record<string, string[]>;
 
 /**
- * Derives an Ember route name from a source module path following
- * Ember's conventional file layout.
- *
- * `app/templates/about.gts` → `about`
- * `app/templates/blog/post.gts` → `blog.post`
- * `app/templates/index.gts` → `index`
- *
- * Returns undefined if the path doesn't match the convention.
+ * Name of the global that SSR-transformed `import()` calls invoke
+ * with the module path, before the import runs.
  */
-function sourcePathToRouteName(
-  facadeModuleId: string,
-  root: string,
-): string | undefined {
-  // Make the path relative to the project root
-  let relativePath = facadeModuleId;
-  if (relativePath.startsWith(root)) {
-    relativePath = relativePath.slice(root.length);
-  }
-  // Strip leading slash
-  if (relativePath.startsWith('/')) {
-    relativePath = relativePath.slice(1);
-  }
+export const IMPORT_HOOK_GLOBAL = '__vite_ember_ssr_import__';
 
-  // Match app/templates/<route-path>.<ext>
-  const match = relativePath.match(
-    /^app\/templates\/(.+)\.(gts|gjs|hbs|ts|js)$/,
-  );
-  if (!match) return undefined;
-
-  // Convert path separators to dots for nested routes
-  return match[1].replace(/\//g, '.');
+/**
+ * Converts an absolute module id into the manifest key.
+ *
+ * - relative to the Vite root
+ * - posix separators
+ * - no query string
+ */
+function sourceModuleId(id: string, root: string): string {
+  const clean = id.split('?')[0];
+  return relative(root, clean).split(sep).join('/');
 }
 
 /**
@@ -105,8 +86,10 @@ interface OutputChunkWithMeta {
  * shared chunks too, skipping the main entry chunk (whose CSS is
  * already in the HTML template).
  *
- * Keys are Ember route names derived from the source file path using
- * Ember's conventional `app/templates/` directory structure.
+ * Keys are the source module paths of the dynamic entries,
+ * relative to the Vite root.
+ *
+ * The SSR side records the same paths when the app calls `import()`.
  */
 function buildCssManifest(
   bundle: Record<string, { type: string }>,
@@ -176,24 +159,142 @@ function buildCssManifest(
 
     if (css.size === 0) continue;
 
-    // Derive the Ember route name from the source module path.
-    // If the path doesn't match Ember conventions, fall back to
-    // the chunk name (e.g., 'about' from 'about-B5EiMzMx.js').
-    const routeName = chunk.facadeModuleId
-      ? (sourcePathToRouteName(chunk.facadeModuleId, root) ?? chunk.name)
-      : chunk.name;
-
-    if (!routeName) continue;
+    // Without a facade module there is no source path to key on
+    if (!chunk.facadeModuleId) continue;
 
     // Prefix CSS paths with the base URL so they work as href values.
     const cssFiles = Array.from(css).map((c) => `${base}${c}`);
 
-    if (cssFiles.length > 0) {
-      manifest[routeName] = cssFiles;
-    }
+    manifest[sourceModuleId(chunk.facadeModuleId, root)] = cssFiles;
   }
 
   return manifest;
+}
+
+// ─── SSR import tracking ─────────────────────────────────────────────
+
+interface AstNode {
+  type: string;
+  start?: number;
+  end?: number;
+  range?: [number, number];
+  [key: string]: unknown;
+}
+
+function nodeSpan(node: AstNode): [number, number] | undefined {
+  if (typeof node.start === 'number' && typeof node.end === 'number') {
+    return [node.start, node.end];
+  }
+  return node.range;
+}
+
+/**
+ * The specifier of an `import()` expression when it is a plain string.
+ *
+ * Computed specifiers give undefined.
+ */
+function literalSpecifier(source: AstNode): string | undefined {
+  if (source.type === 'Literal' && typeof source.value === 'string') {
+    return source.value;
+  }
+  if (source.type === 'TemplateLiteral') {
+    const expressions = source.expressions as unknown[];
+    const quasis = source.quasis as Array<{ value: { cooked?: string } }>;
+    if (expressions.length === 0 && quasis.length === 1) {
+      return quasis[0].value.cooked;
+    }
+  }
+  return undefined;
+}
+
+function walk(node: unknown, visit: (node: AstNode) => void): void {
+  if (Array.isArray(node)) {
+    for (const child of node) walk(child, visit);
+    return;
+  }
+  if (!node || typeof node !== 'object') return;
+  const candidate = node as AstNode;
+  if (typeof candidate.type === 'string') visit(candidate);
+  for (const key of Object.keys(candidate)) {
+    if (key === 'loc' || key === 'range') continue;
+    walk(candidate[key], visit);
+  }
+}
+
+/**
+ * Reports every `import()` the app's own modules perform in SSR.
+ *
+ * Each `import()` is prefixed with a call to the
+ * `__vite_ember_ssr_import__` global, passing the module's path
+ * relative to the Vite root:
+ *
+ *   import("./about.gts")
+ *   → (globalThis.__vite_ember_ssr_import__?.("app/templates/about.gts"), import("./about.gts"))
+ *
+ * The renderer installs that global while it renders a URL
+ * and collects the paths. See css-links.ts.
+ *
+ * Only SSR transforms are touched.
+ *
+ * Runs as a `post` transform, after `import.meta.glob` and TypeScript
+ * are compiled down to plain `import()` expressions.
+ */
+export function trackDynamicImports(): Plugin {
+  let root = '';
+  let active = true;
+
+  const plugin: Plugin = {
+    name: 'vite-ember-ssr:track-imports',
+    enforce: 'post',
+
+    configResolved(config) {
+      root = config.root;
+      // emberSsr() and emberSsg() each register this plugin.
+      // Only the first copy transforms, so imports are wrapped once.
+      const first = config.plugins.find((p) => p.name === plugin.name);
+      active = first === plugin;
+    },
+
+    async transform(code, id, options) {
+      if (!active || !options?.ssr) return null;
+      if (id.startsWith('\0') || !id.startsWith(root)) return null;
+      if (id.includes('/node_modules/')) return null;
+      if (!code.includes('import(')) return null;
+
+      const ast = this.parse(code) as unknown as AstNode;
+      const imports: Array<{ span: [number, number]; specifier: string }> = [];
+
+      walk(ast, (node) => {
+        if (node.type !== 'ImportExpression') return;
+        const specifier = literalSpecifier(node.source as AstNode);
+        const span = nodeSpan(node);
+        if (specifier && span) imports.push({ span, specifier });
+      });
+
+      if (imports.length === 0) return null;
+
+      const s = new MagicString(code);
+      let changed = false;
+
+      for (const { span, specifier } of imports) {
+        const resolved = await this.resolve(specifier, id);
+        if (!resolved || resolved.external || resolved.id.startsWith('\0')) {
+          continue;
+        }
+
+        const key = JSON.stringify(sourceModuleId(resolved.id, root));
+        s.prependLeft(span[0], `(globalThis.${IMPORT_HOOK_GLOBAL}?.(${key}), `);
+        s.appendRight(span[1], ')');
+        changed = true;
+      }
+
+      if (!changed) return null;
+
+      return { code: s.toString(), map: s.generateMap({ hires: true }) };
+    },
+  };
+
+  return plugin;
 }
 
 /**
@@ -323,10 +424,10 @@ export interface EmberSsrPluginOptions {
  * - Writes a `package.json` with `"type": "module"` to the SSR
  *   build output directory (needed for Node ESM compatibility)
  */
-export function emberSsr(options: EmberSsrPluginOptions = {}): Plugin {
+export function emberSsr(options: EmberSsrPluginOptions = {}): Plugin[] {
   let resolvedConfig: ResolvedConfig;
 
-  return {
+  const plugin: Plugin = {
     name: 'vite-ember-ssr',
 
     config(userConfig, env): UserConfig {
@@ -412,6 +513,8 @@ export function emberSsr(options: EmberSsrPluginOptions = {}): Plugin {
       );
     },
   };
+
+  return [plugin, trackDynamicImports()];
 }
 
 // ─── SSG Plugin ──────────────────────────────────────────────────────
@@ -491,7 +594,7 @@ export interface EmberSsgPluginOptions {
  * });
  * ```
  */
-export function emberSsg(options: EmberSsgPluginOptions): Plugin {
+export function emberSsg(options: EmberSsgPluginOptions): Plugin[] {
   const { routes, ssrEntry = 'app/app-ssr.ts', shoebox = false } = options;
 
   // Track whether the user explicitly provided outDir
@@ -502,7 +605,7 @@ export function emberSsg(options: EmberSsgPluginOptions): Plugin {
   // Whether emberSsr is also registered — detected in config() hook
   let isCombined = false;
 
-  return {
+  const plugin: Plugin = {
     name: 'vite-ember-ssg',
 
     config(userConfig, env): UserConfig {
@@ -748,6 +851,8 @@ export function emberSsg(options: EmberSsgPluginOptions): Plugin {
       }
     },
   };
+
+  return [plugin, trackDynamicImports()];
 }
 
 export default emberSsr;

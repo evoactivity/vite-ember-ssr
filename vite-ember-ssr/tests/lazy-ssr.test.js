@@ -89,34 +89,34 @@ describe('Lazy SSR CSS manifest', () => {
   });
 
   it('omits eager routes from the manifest', () => {
-    expect(cssManifest).not.toHaveProperty('index');
+    expect(cssManifest).not.toHaveProperty('app/templates/index.gts');
   });
 
   it('lists the about route with its own + transitive CSS plus shared CSS', () => {
     // about.gts has: direct about.css + about-info.css (transitive) + shared-badge.css (shared)
     // Vite merges about.css + about-info.css into one chunk, shared-badge.css is separate.
-    expect(cssManifest.about).toEqual(
+    expect(cssManifest['app/templates/about.gts']).toEqual(
       expect.arrayContaining([
         expect.stringMatching(/\/assets\/about-[a-zA-Z0-9_-]+\.css$/),
         expect.stringMatching(/\/assets\/shared-badge-[a-zA-Z0-9_-]+\.css$/),
       ]),
     );
-    expect(cssManifest.about.length).toBe(2);
+    expect(cssManifest['app/templates/about.gts'].length).toBe(2);
   });
 
   it('lists the contact route with only the shared component CSS', () => {
     // contact.gts only imports SharedBadge (no direct CSS import)
-    expect(cssManifest.contact.length).toBe(1);
-    expect(cssManifest.contact[0]).toMatch(
+    expect(cssManifest['app/templates/contact.gts'].length).toBe(1);
+    expect(cssManifest['app/templates/contact.gts'][0]).toMatch(
       /\/assets\/shared-badge-[a-zA-Z0-9_-]+\.css$/,
     );
   });
 
   it('deduplicates the shared component CSS across routes', () => {
-    const aboutShared = cssManifest.about.find((p) =>
+    const aboutShared = cssManifest['app/templates/about.gts'].find((p) =>
       p.includes('shared-badge'),
     );
-    const contactShared = cssManifest.contact.find((p) =>
+    const contactShared = cssManifest['app/templates/contact.gts'].find((p) =>
       p.includes('shared-badge'),
     );
     expect(aboutShared).toBe(contactShared);
@@ -191,7 +191,9 @@ describe('Lazy SSR transitive CSS', () => {
     // about.css is imported directly by about.gts
     // about-info.css is imported by about-info.gts (a component used by about.gts)
     // Vite merges them into a single CSS asset for the dynamic entry chunk.
-    const aboutCssPath = cssManifest.about.find((p) => p.includes('/about-'));
+    const aboutCssPath = cssManifest['app/templates/about.gts'].find((p) =>
+      p.includes('/about-'),
+    );
     expect(aboutCssPath).toBeDefined();
 
     const cssContent = await readFile(
