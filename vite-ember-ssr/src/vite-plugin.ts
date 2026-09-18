@@ -479,6 +479,27 @@ export interface EmberSsgPluginOptions {
     html: string,
     context: { route: string; url: string },
   ) => string | Promise<string>;
+
+  /**
+   * The built HTML file that the prerendered pages use as their template,
+   * relative to the client output directory.
+   *
+   * By default it is `index.html`, which also serves the routes that are
+   * not prerendered, so it can hold markup that a prerendered page does
+   * not need. With a second HTML file in the build (a second entry in
+   * `build.rollupOptions.input`), the prerendered pages can have a head
+   * and a body of their own, and `index.html` stays as it is.
+   *
+   * @example
+   * ```js
+   * // vite.config.mjs
+   * build: { rollupOptions: { input: { main: 'index.html', ssr: 'ssr.html' } } },
+   * plugins: [emberSsg({ routes: ['index', 'about'], template: 'ssr.html' })]
+   * ```
+   *
+   * @default 'index.html'
+   */
+  template?: string;
 }
 
 /**
@@ -519,6 +540,7 @@ export function emberSsg(options: EmberSsgPluginOptions): Plugin {
     ssrEntry = 'app/app-ssr.ts',
     shoebox = false,
     transformHtml,
+    template: templateFile = 'index.html',
   } = options;
 
   // Track whether the user explicitly provided outDir
@@ -607,8 +629,8 @@ export function emberSsg(options: EmberSsgPluginOptions): Plugin {
 
       console.log('\n[vite-ember-ssg] Prerendering routes...');
 
-      // Read the built client index.html as template
-      const templatePath = join(clientDir, 'index.html');
+      // Read the built client index.html (or the `template` option) as template
+      const templatePath = join(clientDir, templateFile);
       let template: string;
       try {
         template = await readFile(templatePath, 'utf-8');

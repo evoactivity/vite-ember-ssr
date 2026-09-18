@@ -31,6 +31,13 @@ const testApps = [
     distDir: 'dist',
   },
   {
+    name: 'test-app-ssg-template',
+    root: resolve(packagesRoot, 'test-app-ssg-template'),
+    cmd: 'pnpm build',
+    srcDirs: ['app'],
+    distDir: 'dist',
+  },
+  {
     name: 'test-app-combined',
     root: resolve(packagesRoot, 'test-app-combined'),
     cmd: 'pnpm build:all',
