@@ -2,6 +2,17 @@
 
 ## Release (2026-09-18)
 
+* vite-ember-ssr 0.6.0 (minor)
+
+#### :rocket: Enhancement
+* `vite-ember-ssr`
+  * [#28](https://github.com/evoactivity/vite-ember-ssr/pull/28) Add a template option to emberSsg ([@NullVoxPopuli-ai-agent](https://github.com/NullVoxPopuli-ai-agent))
+
+#### Committers: 1
+- @NullVoxPopuli's reduced-access machine account for AI usage ([@NullVoxPopuli-ai-agent](https://github.com/NullVoxPopuli-ai-agent))
+
+## Release (2026-09-18)
+
 * vite-ember-ssr 0.5.0 (minor)
 
 #### :rocket: Enhancement

@@ -2,21 +2,17 @@
   "solution": {
     "vite-ember-ssr": {
       "impact": "minor",
-      "oldVersion": "0.4.1",
-      "newVersion": "0.5.0",
+      "oldVersion": "0.5.0",
+      "newVersion": "0.6.0",
       "tagName": "latest",
       "constraints": [
         {
           "impact": "minor",
           "reason": "Appears in changelog section :rocket: Enhancement"
-        },
-        {
-          "impact": "patch",
-          "reason": "Appears in changelog section :bug: Bug Fix"
         }
       ],
       "pkgJSONPath": "./vite-ember-ssr/package.json"
     }
   },
-  "description": "## Release (2026-09-18)\n\n* vite-ember-ssr 0.5.0 (minor)\n\n#### :rocket: Enhancement\n* `vite-ember-ssr`\n  * [#26](https://github.com/evoactivity/vite-ember-ssr/pull/26) Add a transformHtml option to emberSsg ([@NullVoxPopuli-ai-agent](https://github.com/NullVoxPopuli-ai-agent))\n\n#### :bug: Bug Fix\n* `vite-ember-ssr`\n  * [#19](https://github.com/evoactivity/vite-ember-ssr/pull/19) fix: make the shoebox fetch interceptor transparent to native-fetch detection ([@st-h](https://github.com/st-h))\n  * [#14](https://github.com/evoactivity/vite-ember-ssr/pull/14) fix: don't serialize Set-Cookie into the shoebox ([@st-h](https://github.com/st-h))\n  * [#25](https://github.com/evoactivity/vite-ember-ssr/pull/25) Drop stylesheet links that the template already has ([@NullVoxPopuli-ai-agent](https://github.com/NullVoxPopuli-ai-agent))\n\n#### Committers: 2\n- @NullVoxPopuli's reduced-access machine account for AI usage ([@NullVoxPopuli-ai-agent](https://github.com/NullVoxPopuli-ai-agent))\n- Steve ([@st-h](https://github.com/st-h))\n"
+  "description": "## Release (2026-09-18)\n\n* vite-ember-ssr 0.6.0 (minor)\n\n#### :rocket: Enhancement\n* `vite-ember-ssr`\n  * [#28](https://github.com/evoactivity/vite-ember-ssr/pull/28) Add a template option to emberSsg ([@NullVoxPopuli-ai-agent](https://github.com/NullVoxPopuli-ai-agent))\n\n#### Committers: 1\n- @NullVoxPopuli's reduced-access machine account for AI usage ([@NullVoxPopuli-ai-agent](https://github.com/NullVoxPopuli-ai-agent))\n"
 }
