@@ -347,3 +347,28 @@ describe('body attributes', () => {
     expect(second.rendered.bodyAttrs).toBeDefined();
   });
 });
+
+// ─── Worker reuse ────────────────────────────────────────────────────
+
+describe('head isolation across renders', () => {
+  it("doesn't carry one render's head into the next", async () => {
+    // One worker, so every render shares a Window. With the default pool size
+    // a machine with enough cores gives each render its own worker and hides
+    // the leak.
+    const single = await createEmberApp(ssrBundlePath, { workers: 1 });
+
+    try {
+      for (const route of ['index', 'about', 'index', 'about']) {
+        const { head } = await single.renderRoute(
+          route === 'index' ? '/' : `/${route}`,
+        );
+
+        expect(head.match(/<script glmr=/g) ?? []).toHaveLength(1);
+        expect(head.match(/name="route-head"/g) ?? []).toHaveLength(1);
+        expect(head).toContain(`content="${route}"`);
+      }
+    } finally {
+      await single.destroy();
+    }
+  });
+});
