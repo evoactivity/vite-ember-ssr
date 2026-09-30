@@ -1,5 +1,16 @@
 # Changelog
 
+## Release (2026-09-30)
+
+* vite-ember-ssr 0.6.1 (patch)
+
+#### :bug: Bug Fix
+* `vite-ember-ssr`
+  * [#30](https://github.com/evoactivity/vite-ember-ssr/pull/30) fix: reset document.head between renders in the worker ([@kennstenicht](https://github.com/kennstenicht))
+
+#### Committers: 1
+- Christoph Wiedenmann ([@kennstenicht](https://github.com/kennstenicht))
+
 ## Release (2026-09-18)
 
 * vite-ember-ssr 0.6.0 (minor)

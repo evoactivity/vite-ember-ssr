@@ -1,18 +1,18 @@
 {
   "solution": {
     "vite-ember-ssr": {
-      "impact": "minor",
-      "oldVersion": "0.5.0",
-      "newVersion": "0.6.0",
+      "impact": "patch",
+      "oldVersion": "0.6.0",
+      "newVersion": "0.6.1",
       "tagName": "latest",
       "constraints": [
         {
-          "impact": "minor",
-          "reason": "Appears in changelog section :rocket: Enhancement"
+          "impact": "patch",
+          "reason": "Appears in changelog section :bug: Bug Fix"
         }
       ],
       "pkgJSONPath": "./vite-ember-ssr/package.json"
     }
   },
-  "description": "## Release (2026-09-18)\n\n* vite-ember-ssr 0.6.0 (minor)\n\n#### :rocket: Enhancement\n* `vite-ember-ssr`\n  * [#28](https://github.com/evoactivity/vite-ember-ssr/pull/28) Add a template option to emberSsg ([@NullVoxPopuli-ai-agent](https://github.com/NullVoxPopuli-ai-agent))\n\n#### Committers: 1\n- @NullVoxPopuli's reduced-access machine account for AI usage ([@NullVoxPopuli-ai-agent](https://github.com/NullVoxPopuli-ai-agent))\n"
+  "description": "## Release (2026-09-30)\n\n* vite-ember-ssr 0.6.1 (patch)\n\n#### :bug: Bug Fix\n* `vite-ember-ssr`\n  * [#30](https://github.com/evoactivity/vite-ember-ssr/pull/30) fix: reset document.head between renders in the worker ([@kennstenicht](https://github.com/kennstenicht))\n\n#### Committers: 1\n- Christoph Wiedenmann ([@kennstenicht](https://github.com/kennstenicht))\n"
 }
