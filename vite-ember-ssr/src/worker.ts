@@ -7,7 +7,8 @@
  * so there is no concurrency concern within a single worker.
  *
  * app.visit() fully owns document.head/body between calls, so DOM state does
- * not bleed across renders. A fresh ApplicationInstance is created per visit
+ * not bleed across renders — both are reset after every render, see the
+ * teardown in `render()`. A fresh ApplicationInstance is created per visit
  * and destroyed after the DOM is read, keeping container singletons clean.
  *
  * The shoebox fetch interceptor is installed once at startup. Each render
@@ -310,8 +311,14 @@ export default async function render(
       /* instance teardown failed — the DOM reset below must still run */
     }
 
-    // Serialize mode leaves rehydration markers in the DOM; reset the body so
-    // the next render starts from a clean slate regardless of success/failure.
+    // Serialize mode leaves rehydration markers in the DOM; reset head and body
+    // so the next render starts from a clean slate regardless of success/failure.
+    // `{{#in-element document.head}}` leaves its cursor marker in <head>, so
+    // without the head reset each render inherits the head of the ones before.
+    if (document.head) {
+      document.head.innerHTML = '';
+    }
+
     if (document.body) {
       document.body.innerHTML = '';
 
