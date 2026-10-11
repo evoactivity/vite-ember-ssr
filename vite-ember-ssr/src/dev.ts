@@ -36,6 +36,7 @@ import type {
   EmberApp,
   EmberAppDevOptions,
 } from './server.js';
+import { installGlobals, restoreGlobals } from './browser-globals.js';
 import {
   compose,
   forwardCookieMiddleware,
@@ -43,35 +44,6 @@ import {
 } from './fetch-middleware.js';
 
 // ─── Constants ────────────────────────────────────────────────────────
-// @todo I've seen happydom has a global registration method, use that
-// instead of manually installing globals.
-const BROWSER_GLOBALS = [
-  'window',
-  'document',
-  'navigator',
-  'location',
-  'history',
-  'HTMLElement',
-  'Element',
-  'Node',
-  'Event',
-  'CustomEvent',
-  'MutationObserver',
-  'requestAnimationFrame',
-  'cancelAnimationFrame',
-  'self',
-  'localStorage',
-  'sessionStorage',
-  'InputEvent',
-  'KeyboardEvent',
-  'MouseEvent',
-  'FocusEvent',
-  'PointerEvent',
-  'IntersectionObserver',
-  'ResizeObserver',
-  'CSSStyleSheet',
-  'getComputedStyle',
-] as const;
 
 const SHOEBOX_SCRIPT_ID = 'vite-ember-ssr-shoebox';
 
@@ -80,39 +52,6 @@ const SHOEBOX_SCRIPT_ID = 'vite-ember-ssr-shoebox';
 let warnedMissingSettled = false;
 
 // ─── Helpers ──────────────────────────────────────────────────────────
-
-function installGlobals(win: Window): Record<string, unknown> {
-  const saved: Record<string, unknown> = {};
-  for (const name of BROWSER_GLOBALS) {
-    saved[name] = (globalThis as Record<string, unknown>)[name];
-    try {
-      Object.defineProperty(globalThis, name, {
-        value: (win as unknown as Record<string, unknown>)[name],
-        writable: true,
-        configurable: true,
-        enumerable: true,
-      });
-    } catch {
-      /* skip non-overridable globals */
-    }
-  }
-  return saved;
-}
-
-function restoreGlobals(saved: Record<string, unknown>): void {
-  for (const name of BROWSER_GLOBALS) {
-    try {
-      Object.defineProperty(globalThis, name, {
-        value: saved[name],
-        writable: true,
-        configurable: true,
-        enumerable: true,
-      });
-    } catch {
-      /* skip */
-    }
-  }
-}
 
 function serializeShoebox(entries: ShoeboxEntry[]): string {
   if (entries.length === 0) return '';

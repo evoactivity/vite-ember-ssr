@@ -26,6 +26,7 @@ import type {
   ShoeboxEntry,
   ForwardedCookie,
 } from './server.js';
+import { installGlobals } from './browser-globals.js';
 import {
   compose,
   forwardCookieMiddleware,
@@ -52,49 +53,6 @@ export interface WorkerRenderResult {
 }
 
 // ─── Browser globals ──────────────────────────────────────────────────
-
-const BROWSER_GLOBALS = [
-  'window',
-  'document',
-  'navigator',
-  'location',
-  'history',
-  'HTMLElement',
-  'Element',
-  'Node',
-  'Event',
-  'CustomEvent',
-  'MutationObserver',
-  'requestAnimationFrame',
-  'cancelAnimationFrame',
-  'self',
-  'localStorage',
-  'sessionStorage',
-  'InputEvent',
-  'KeyboardEvent',
-  'MouseEvent',
-  'FocusEvent',
-  'PointerEvent',
-  'IntersectionObserver',
-  'ResizeObserver',
-  'getComputedStyle',
-  'CSSStyleSheet',
-] as const;
-
-function installGlobals(win: Window): void {
-  for (const name of BROWSER_GLOBALS) {
-    try {
-      Object.defineProperty(globalThis, name, {
-        value: (win as unknown as Record<string, unknown>)[name],
-        writable: true,
-        configurable: true,
-        enumerable: true,
-      });
-    } catch {
-      /* skip non-overridable globals */
-    }
-  }
-}
 
 // ─── Eager startup: single long-lived Window + app ────────────────────
 
