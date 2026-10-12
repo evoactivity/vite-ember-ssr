@@ -1,5 +1,16 @@
 # Changelog
 
+## Release (2026-10-12)
+
+* vite-ember-ssr 0.6.2 (patch)
+
+#### :bug: Bug Fix
+* `vite-ember-ssr`
+  * [#32](https://github.com/evoactivity/vite-ember-ssr/pull/32) Install every DOM node class as a global ([@NullVoxPopuli-ai-agent](https://github.com/NullVoxPopuli-ai-agent))
+
+#### Committers: 1
+- @NullVoxPopuli's reduced-access machine account for AI usage ([@NullVoxPopuli-ai-agent](https://github.com/NullVoxPopuli-ai-agent))
+
 ## Release (2026-09-30)
 
 * vite-ember-ssr 0.6.1 (patch)

@@ -2,8 +2,8 @@
   "solution": {
     "vite-ember-ssr": {
       "impact": "patch",
-      "oldVersion": "0.6.0",
-      "newVersion": "0.6.1",
+      "oldVersion": "0.6.1",
+      "newVersion": "0.6.2",
       "tagName": "latest",
       "constraints": [
         {
@@ -14,5 +14,5 @@
       "pkgJSONPath": "./vite-ember-ssr/package.json"
     }
   },
-  "description": "## Release (2026-09-30)\n\n* vite-ember-ssr 0.6.1 (patch)\n\n#### :bug: Bug Fix\n* `vite-ember-ssr`\n  * [#30](https://github.com/evoactivity/vite-ember-ssr/pull/30) fix: reset document.head between renders in the worker ([@kennstenicht](https://github.com/kennstenicht))\n\n#### Committers: 1\n- Christoph Wiedenmann ([@kennstenicht](https://github.com/kennstenicht))\n"
+  "description": "## Release (2026-10-12)\n\n* vite-ember-ssr 0.6.2 (patch)\n\n#### :bug: Bug Fix\n* `vite-ember-ssr`\n  * [#32](https://github.com/evoactivity/vite-ember-ssr/pull/32) Install every DOM node class as a global ([@NullVoxPopuli-ai-agent](https://github.com/NullVoxPopuli-ai-agent))\n\n#### Committers: 1\n- @NullVoxPopuli's reduced-access machine account for AI usage ([@NullVoxPopuli-ai-agent](https://github.com/NullVoxPopuli-ai-agent))\n"
 }
