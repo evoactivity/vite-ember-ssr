@@ -1,5 +1,16 @@
 # Changelog
 
+## Release (2026-11-04)
+
+* vite-ember-ssr 0.6.3 (patch)
+
+#### :bug: Bug Fix
+* `vite-ember-ssr`
+  * [#34](https://github.com/evoactivity/vite-ember-ssr/pull/34) bootRehydrated: keep the URL hash ([@NullVoxPopuli-ai-agent](https://github.com/NullVoxPopuli-ai-agent))
+
+#### Committers: 1
+- @NullVoxPopuli's reduced-access machine account for AI usage ([@NullVoxPopuli-ai-agent](https://github.com/NullVoxPopuli-ai-agent))
+
 ## Release (2026-10-12)
 
 * vite-ember-ssr 0.6.2 (patch)
