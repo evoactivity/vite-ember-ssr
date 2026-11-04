@@ -41,6 +41,17 @@ test.describe('Client Ember rehydrates and becomes interactive', () => {
     await expect(page.locator('[data-count="1"]')).toBeVisible();
   });
 
+  test('keeps the URL hash after boot', async ({ page }) => {
+    await page.goto('/#section');
+
+    await page.waitForFunction(
+      () => document.body.classList.contains('ember-application'),
+      { timeout: 15_000 },
+    );
+
+    expect(await page.evaluate(() => location.hash)).toBe('#section');
+  });
+
   test('no SSR boundary markers in the DOM', async ({ page }) => {
     // The server never emits boundary markers. Extra DOM nodes would
     // break Glimmer's RehydrateTree which expects the first child to

@@ -208,9 +208,10 @@ interface ApplicationClass {
  *   so Glimmer attaches to the existing DOM instead of replacing it.
  * - Otherwise, calls `Application.create(config.APP)` for a normal boot.
  *
- * The visit URL is derived from `window.location.pathname + search`
+ * The visit URL is derived from `window.location.pathname + search + hash`
  * with the configured `rootURL` stripped, matching what `Application.create`
- * would have used internally.
+ * would have used internally. The router writes the visit URL back to the
+ * address bar, so a URL without the hash would remove it.
  *
  * @example
  * ```ts
@@ -237,10 +238,11 @@ export function bootRehydrated(
   });
 
   const rootURL = config.rootURL ?? '/';
-  const url = (window.location.pathname + window.location.search).replace(
-    rootURL,
-    '/',
-  );
+  const url = (
+    window.location.pathname +
+    window.location.search +
+    window.location.hash
+  ).replace(rootURL, '/');
 
   void app.visit?.(url, { _renderMode: 'rehydrate' });
 }
