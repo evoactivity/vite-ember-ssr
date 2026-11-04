@@ -339,12 +339,54 @@ describe('body attributes', () => {
     expect(html).toContain('data-info="he said &quot;hello&quot;"');
   });
 
+  it('assembleHTML replaces a template body attribute of the same name', () => {
+    const tmpl =
+      '<html><head><!-- VITE_EMBER_SSR_HEAD --></head><body class="shell" id="app"><!-- VITE_EMBER_SSR_BODY --></body></html>';
+    const html = assembleHTML(tmpl, {
+      head: '',
+      body: '',
+      bodyAttrs: { class: 'ember-application' },
+    });
+
+    expect(html).toContain('<body id="app" class="ember-application">');
+  });
+
   it('bodyAttrs do not bleed between renders', async () => {
     const first = await renderRoute('/');
     const second = await renderRoute('/about');
 
     expect(first.rendered.bodyAttrs).toBeDefined();
     expect(second.rendered.bodyAttrs).toBeDefined();
+  });
+});
+
+// ─── <html> attributes ───────────────────────────────────────────────
+
+describe('html attributes', () => {
+  const tmpl =
+    '<!DOCTYPE html><html lang="en"><head><!-- VITE_EMBER_SSR_HEAD --></head><body><!-- VITE_EMBER_SSR_BODY --></body></html>';
+
+  it('returns htmlAttrs as an object', async () => {
+    const { rendered } = await renderRoute('/');
+
+    expect(typeof rendered.htmlAttrs).toBe('object');
+  });
+
+  it('assembleHTML sets htmlAttrs on the <html> tag, replacing the template value', () => {
+    const html = assembleHTML(tmpl, {
+      head: '',
+      body: '',
+      htmlAttrs: { lang: 'es-MX', dir: 'ltr' },
+    });
+
+    expect(html).toContain('<!DOCTYPE html><html lang="es-MX" dir="ltr">');
+    expect(html).not.toContain('lang="en"');
+  });
+
+  it('assembleHTML leaves <html> alone without htmlAttrs', () => {
+    const html = assembleHTML(tmpl, { head: '', body: '' });
+
+    expect(html).toContain('<html lang="en">');
   });
 });
 

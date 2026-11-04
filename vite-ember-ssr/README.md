@@ -510,9 +510,9 @@ import {
 ```
 
 - **`createEmberApp(ssrBundlePath, options?)`** creates a long lived tinypool worker pool. Each worker imports the SSR bundle once at startup. Returns an `EmberApp`. Options: `{ workers?: number, recycleWorkerInterval?: number, isolateWorkers?: boolean, dev?: { ssrLoadModule } }`.
-- **`app.renderRoute(url, options?)`** renders a URL path. Returns `{ head, body, statusCode, error }`. Options: `{ shoebox?, cssManifest?, settledTimeout? }`. `settledTimeout` (default `10000`) bounds how long the renderer waits for the SSR bundle's exported `settled()` to resolve, see [Settling](#settling).
+- **`app.renderRoute(url, options?)`** renders a URL path. Returns `{ head, body, bodyAttrs, htmlAttrs, statusCode, error }`: `bodyAttrs` and `htmlAttrs` are the attributes the render set on `<body>` and `<html>` (`lang`, `dir`, `class`...), which `assembleHTML` applies to the template's tags. Options: `{ shoebox?, cssManifest?, settledTimeout? }`. `settledTimeout` (default `10000`) bounds how long the renderer waits for the SSR bundle's exported `settled()` to resolve, see [Settling](#settling).
 - **`app.destroy()`** shuts down the worker pool.
-- **`assembleHTML(template, renderResult)`** inserts rendered fragments into the template at the `<!-- VITE_EMBER_SSR_HEAD -->` and `<!-- VITE_EMBER_SSR_BODY -->` markers.
+- **`assembleHTML(template, renderResult)`** inserts rendered fragments into the template at the `<!-- VITE_EMBER_SSR_HEAD -->` and `<!-- VITE_EMBER_SSR_BODY -->` markers, and sets `renderResult.htmlAttrs` and `renderResult.bodyAttrs` on the template's `<html>` and `<body>` (a rendered attribute replaces the template's attribute of the same name).
 - **`loadCssManifest(clientDir)`** loads the CSS manifest from the client build output. Returns `undefined` if not present. Used with lazy routes.
 - **`hasSSRMarkers(html)`** returns `{ head: boolean, body: boolean }` indicating which markers are present.
 
