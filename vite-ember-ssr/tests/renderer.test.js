@@ -44,5 +44,32 @@ for (const [mode, create] of Object.entries(modes)) {
       expect(rendered.body).toContain('rendered /other');
       expect(rendered.htmlAttrs).toEqual({});
     });
+
+    it('fails the render (500) on an error thrown from a timer during it', async () => {
+      const rendered = await app.renderRoute('/throw-later');
+
+      expect(rendered.statusCode).toBe(500);
+      expect(rendered.error.message).toContain(
+        'thrown from a timer during the render',
+      );
+    });
+
+    it('fails the render (500) on a promise left rejected during it', async () => {
+      const rendered = await app.renderRoute('/reject-later');
+
+      expect(rendered.statusCode).toBe(500);
+      expect(rendered.error.message).toContain('rejected during the render');
+    });
+
+    it('keeps rendering, with the same app, after such an error', async () => {
+      const before = await app.renderRoute('/before');
+      await app.renderRoute('/throw-later');
+      const after = await app.renderRoute('/after');
+
+      const visit = (rendered) => Number(rendered.body.match(/visit (\d+)/)[1]);
+
+      expect(after.statusCode).toBe(200);
+      expect(visit(after)).toBe(visit(before) + 2);
+    });
   });
 }

@@ -173,6 +173,16 @@ export function createDevEmberApp(
       let cssLinks = '';
       let error: Error | undefined;
 
+      // An error the app throws from a timer, or a promise it leaves
+      // rejected, while the page renders fails the render (a 500), as one
+      // thrown by `visit()` does, instead of crashing the dev server.
+      const asyncErrors: Error[] = [];
+      const onAsyncError = (e: unknown) => {
+        asyncErrors.push(e instanceof Error ? e : new Error(String(e)));
+      };
+      process.on('uncaughtException', onAsyncError);
+      process.on('unhandledRejection', onAsyncError);
+
       try {
         const document = win.document;
 
@@ -243,6 +253,8 @@ export function createDevEmberApp(
           await new Promise<void>((resolve) => setTimeout(resolve, 0));
         }
 
+        if (asyncErrors[0]) throw asyncErrors[0];
+
         if (cssManifest) {
           cssLinks = buildRouteCssLinks(cssManifest, instance);
         }
@@ -266,6 +278,8 @@ export function createDevEmberApp(
       } catch (e) {
         error = e instanceof Error ? e : new Error(String(e));
       } finally {
+        process.off('uncaughtException', onAsyncError);
+        process.off('unhandledRejection', onAsyncError);
         if (middlewareActive) globalThis.fetch = realFetch;
         restoreGlobals(savedGlobals);
         await win.happyDOM?.close?.();
