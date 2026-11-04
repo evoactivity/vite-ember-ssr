@@ -3,3 +3,6 @@ dist
 test-results
 playwright-report
 benchmark/results
+
+# A test fixture: a package for an SSR build to bundle
+!vite-ember-ssr/tests/fixtures/cjs-require/node_modules
