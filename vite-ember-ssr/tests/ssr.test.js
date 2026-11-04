@@ -285,6 +285,28 @@ describe('body attributes', () => {
     expect(html).toContain('<title>Test</title>');
   });
 
+  it('assembleHTML replaces the template title with the rendered title', () => {
+    const tmpl =
+      '<html><head><title>My App</title>\n<!-- VITE_EMBER_SSR_HEAD --></head><body><!-- VITE_EMBER_SSR_BODY --></body></html>';
+    const rendered = {
+      head: '<title>About | My App</title>',
+      body: '<div>content</div>',
+    };
+    const html = assembleHTML(tmpl, rendered);
+
+    expect(html.match(/<title>/g)).toHaveLength(1);
+    expect(html).toContain('<title>About | My App</title>');
+  });
+
+  it('assembleHTML keeps the template title when the render has none', () => {
+    const tmpl =
+      '<html><head><title>My App</title><!-- VITE_EMBER_SSR_HEAD --></head><body><!-- VITE_EMBER_SSR_BODY --></body></html>';
+    const rendered = { head: '<meta name="x" content="y">', body: '' };
+    const html = assembleHTML(tmpl, rendered);
+
+    expect(html).toContain('<title>My App</title>');
+  });
+
   it('assembleHTML applies bodyAttrs to the <body> tag', () => {
     const tmpl =
       '<html><head><!-- VITE_EMBER_SSR_HEAD --></head><body><!-- VITE_EMBER_SSR_BODY --></body></html>';

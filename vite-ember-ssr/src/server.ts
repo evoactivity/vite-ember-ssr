@@ -366,7 +366,9 @@ export function assembleHTML(
   let headReplaced = false;
   let bodyReplaced = false;
 
-  let html = template.replace(SSR_MARKER_REGEX, (_match, tag: string) => {
+  const page = withoutTitleOf(template, rendered.head);
+
+  let html = page.replace(SSR_MARKER_REGEX, (_match, tag: string) => {
     if (tag === 'HEAD' && !headReplaced) {
       headReplaced = true;
       return withoutStylesheetsOf(template, rendered.head);
@@ -392,6 +394,23 @@ export function assembleHTML(
 
 const STYLESHEET_LINK_REGEX = /<link\b[^>]*\brel=["']stylesheet["'][^>]*>/g;
 const HREF_REGEX = /\bhref=["']([^"']+)["']/;
+
+const TITLE_REGEX = /[ \t]*<title\b[^>]*>[\s\S]*?<\/title>[ \t]*\r?\n?/i;
+const HEAD_REGEX = /<head\b[^>]*>[\s\S]*?<\/head>/i;
+
+/**
+ * Drops the template's <title> when the rendered head has one.
+ * A document uses its first <title>, so the static title of the template
+ * would win over the title that the app set for the page.
+ * Without a rendered title, the template's title stays as the fallback.
+ */
+function withoutTitleOf(template: string, head: string): string {
+  if (!TITLE_REGEX.test(head)) return template;
+
+  return template.replace(HEAD_REGEX, (templateHead) =>
+    templateHead.replace(TITLE_REGEX, ''),
+  );
+}
 
 /**
  * Drops the stylesheet links of the rendered head whose href the template
