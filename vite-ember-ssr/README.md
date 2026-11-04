@@ -186,6 +186,26 @@ export { settled } from '@ember/test-helpers';
 
 `settled()` waits for Ember's run loop, pending Backburner timers, in-flight AJAX, route transitions, and any registered `@ember/test-waiters` (used by WarpDrive, ember-concurrency, etc.) to drain before the DOM is captured.
 
+**In a production build, `@ember/test-waiters` does nothing.** Its waiters only track work under `isDevelopingApp()` (they are compiled out of a production build), so `settled()` there waits for the run loop, timers and route transitions, but not for work an app or addon registered with `waitForPromise` or `buildWaiter`. A server bundle built with `vite build --ssr` is a production build. If the page renders something asynchronous that isn't part of a route's model hook (which `app.visit()` already waits for), export your own `settled` that also waits for it:
+
+```ts
+// app-ssr.ts
+import { settled as emberSettled } from '@ember/test-helpers';
+
+// A Set<Promise<unknown>> the app adds that work to (from a helper, a
+// service...), in a module of its own.
+import { pending } from './utils/pending-render-work.ts';
+
+export async function settled() {
+  await emberSettled();
+
+  while (pending.size) {
+    await Promise.allSettled([...pending]);
+    await emberSettled();
+  }
+}
+```
+
 Without this export, the renderer falls back to a single microtask drain (`await new Promise(r => setTimeout(r, 0))`), which catches synchronous reactivity but misses async work scheduled outside the microtask queue.
 
 The renderer races `settled()` against a configurable timeout (default 10s). If exceeded, a warning is logged and the DOM is captured anyway. See [`app.renderRoute`](#vite-ember-ssrserver) for `settledTimeout`.
