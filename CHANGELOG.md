@@ -2,6 +2,17 @@
 
 ## Release (2026-11-04)
 
+* vite-ember-ssr 0.6.4 (patch)
+
+#### :bug: Bug Fix
+* `vite-ember-ssr`
+  * [#36](https://github.com/evoactivity/vite-ember-ssr/pull/36) assembleHTML: the rendered title replaces the template title ([@NullVoxPopuli-ai-agent](https://github.com/NullVoxPopuli-ai-agent))
+
+#### Committers: 1
+- @NullVoxPopuli's reduced-access machine account for AI usage ([@NullVoxPopuli-ai-agent](https://github.com/NullVoxPopuli-ai-agent))
+
+## Release (2026-11-04)
+
 * vite-ember-ssr 0.6.3 (patch)
 
 #### :bug: Bug Fix
