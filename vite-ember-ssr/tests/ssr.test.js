@@ -370,6 +370,37 @@ describe('body attributes', () => {
   });
 });
 
+// ─── Status codes ────────────────────────────────────────────────────
+
+describe('status codes', () => {
+  it('answers the code that the app set with setStatusCode()', async () => {
+    const { html, rendered } = await renderRoute('/missing');
+
+    expect(rendered.statusCode).toBe(404);
+    expect(rendered.error).toBeUndefined();
+    expect(html).toContain('data-route="missing"');
+  });
+
+  it('answers 404 for a URL that no route matches', async () => {
+    const { rendered } = await renderRoute('/does-not-exist');
+
+    expect(rendered.statusCode).toBe(404);
+    expect(rendered.error?.message).toContain('/does-not-exist');
+  });
+
+  it("doesn't carry one render's status code into the next", async () => {
+    // One worker, so both renders share its globals.
+    const single = await createEmberApp(ssrBundlePath, { workers: 1 });
+
+    try {
+      expect((await single.renderRoute('/missing')).statusCode).toBe(404);
+      expect((await single.renderRoute('/about')).statusCode).toBe(200);
+    } finally {
+      await single.destroy();
+    }
+  });
+});
+
 // ─── Worker reuse ────────────────────────────────────────────────────
 
 describe('head isolation across renders', () => {

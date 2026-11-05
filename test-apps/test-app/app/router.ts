@@ -10,6 +10,7 @@ Router.map(function () {
   this.route('about');
   this.route('contact');
   this.route('waiter-test');
+  this.route('missing');
   this.route('pokemon-fetch', function () {
     this.route('show', { path: '/:name' });
   });
