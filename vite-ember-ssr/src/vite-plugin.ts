@@ -256,14 +256,21 @@ function ssrDepsConfig(
  * on files that have no ESM syntax at all, which covers the CJS/UMD
  * packages that appear in the Ember + WarpDrive dependency tree without
  * misidentifying genuine ESM files.
+ *
+ * Only for dev (`serve`): a build's bundler converts CommonJS itself, and
+ * the shim gets in its way. A wrapped file is ESM to the bundler, so its
+ * `require()` calls are no longer resolved: a CommonJS file that requires
+ * another one (`require('./state-toggle')` in remark-parse@8) fails at
+ * runtime, with `Cannot find module` (Rollup) or by getting the other
+ * file's namespace instead of its `module.exports` (Rolldown).
  */
 function cjsSsrShimTransform(
+  command: 'build' | 'serve',
   code: string,
-  _id: string,
   options?: { ssr?: boolean },
 ): { code: string; map: null } | null {
-  // Only apply during SSR transforms
-  if (!options?.ssr) return null;
+  // Only apply during SSR transforms in dev (see above)
+  if (!options?.ssr || command !== 'serve') return null;
 
   // Skip if the file contains any top-level import/export → it's ESM
   if (/^(?:import\s|export\s|export\{|export default)/m.test(code)) return null;
@@ -325,6 +332,7 @@ export interface EmberSsrPluginOptions {
  */
 export function emberSsr(options: EmberSsrPluginOptions = {}): Plugin {
   let resolvedConfig: ResolvedConfig;
+  let command: 'build' | 'serve' = 'serve';
 
   return {
     name: 'vite-ember-ssr',
@@ -338,6 +346,7 @@ export function emberSsr(options: EmberSsrPluginOptions = {}): Plugin {
       // CJS/UMD packages so they work with ESModulesEvaluator.
       // See: https://github.com/evoactivity/vite-ember-ssr/issues/4
       const ssrConfig = ssrDepsConfig(userConfig, env.command);
+      command = env.command;
 
       // During the SSG child build, only set ssr config — don't
       // override build.outDir (the SSG plugin sets it explicitly
@@ -370,7 +379,9 @@ export function emberSsr(options: EmberSsrPluginOptions = {}): Plugin {
       resolvedConfig = config;
     },
 
-    transform: cjsSsrShimTransform,
+    transform(code, _id, transformOptions) {
+      return cjsSsrShimTransform(command, code, transformOptions);
+    },
 
     generateBundle(_outputOptions, bundle) {
       // Only generate the CSS manifest for client builds.
@@ -550,6 +561,7 @@ export function emberSsg(options: EmberSsgPluginOptions): Plugin {
 
   // Whether emberSsr is also registered — detected in config() hook
   let isCombined = false;
+  let command: 'build' | 'serve' = 'serve';
 
   return {
     name: 'vite-ember-ssg',
@@ -557,6 +569,7 @@ export function emberSsg(options: EmberSsgPluginOptions): Plugin {
     config(userConfig, env): UserConfig {
       // Bundle all dependencies for SSR builds — see ssrDepsConfig().
       const ssrConfig = ssrDepsConfig(userConfig, env.command);
+      command = env.command;
 
       // During the SSG child build, only set ssr config — don't touch
       // build.outDir or detect isCombined (irrelevant for child build).
@@ -586,7 +599,9 @@ export function emberSsg(options: EmberSsgPluginOptions): Plugin {
       resolvedConfig = config;
     },
 
-    transform: cjsSsrShimTransform,
+    transform(code, _id, transformOptions) {
+      return cjsSsrShimTransform(command, code, transformOptions);
+    },
 
     generateBundle(_outputOptions, bundle) {
       // When combined with emberSsr, the SSR plugin already emits
