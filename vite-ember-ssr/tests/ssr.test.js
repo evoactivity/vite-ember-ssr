@@ -408,7 +408,7 @@ describe('html attributes', () => {
   it('assembleHTML leaves <html> alone without htmlAttrs', () => {
     const html = assembleHTML(tmpl, { head: '', body: '' });
 
-    expect(html).toContain('<html lang="en">'); 
+    expect(html).toContain('<html lang="en">');
   });
 });
 
