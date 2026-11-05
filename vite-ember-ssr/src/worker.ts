@@ -27,6 +27,7 @@ import type {
   ForwardedCookie,
 } from './server.js';
 import { installGlobals } from './browser-globals.js';
+import { resetStatusCode, statusCodeFor } from './status-code.js';
 import {
   compose,
   forwardCookieMiddleware,
@@ -217,6 +218,7 @@ export default async function render(
   // single shared pipeline can serve every render without re-installation.
   activeShoebox = shoebox ? new Map() : null;
   activeCookie = forwardCookie;
+  resetStatusCode();
 
   let head = '';
   let body = '';
@@ -304,9 +306,12 @@ export default async function render(
       ? serializeShoebox(Array.from(activeShoebox.values()))
       : '';
 
+  const statusCode = statusCodeFor(error);
+
   // Clear per-render state so a stray late fetch can't see stale config.
   activeShoebox = null;
   activeCookie = null;
+  resetStatusCode();
   const rehydrateHTML =
     '<script>window.__vite_ember_ssr_rehydrate__=true</script>';
   const fullHead = cssLinks + rehydrateHTML + shoeboxHTML + head;
@@ -316,7 +321,7 @@ export default async function render(
     body,
     bodyAttrs,
     htmlAttrs,
-    statusCode: error ? 500 : 200,
+    statusCode,
     ...(error
       ? { error: error.message + (error.stack ? '\n' + error.stack : '') }
       : {}),

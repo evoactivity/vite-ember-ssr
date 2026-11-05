@@ -257,6 +257,39 @@ await emberApp.destroy();
 
 See [examples/fastify.md](https://github.com/evoactivity/vite-ember-ssr/blob/main/examples/fastify.md) for a complete Fastify server with both dev and prod modes.
 
+### Status codes
+
+`rendered.statusCode` is:
+
+- `500` if the render throws.
+- `404` if no route matches the URL (`visit()` throws `UnrecognizedURLError`).
+- The code that the app set with `setStatusCode()` during the render.
+- `200` otherwise.
+
+To answer `404` from a catch-all not-found route, call `setStatusCode()` in the route:
+
+```js
+// app/router.js
+Router.map(function () {
+  // ...the other routes
+  this.route('not-found', { path: '/*path' });
+});
+```
+
+```js
+// app/routes/not-found.js
+import Route from '@ember/routing/route';
+import { setStatusCode } from 'vite-ember-ssr/client';
+
+export default class NotFoundRoute extends Route {
+  model() {
+    setStatusCode(404);
+  }
+}
+```
+
+Each render starts at `200`, so a code does not carry into the next render. In the browser, `setStatusCode()` has no effect.
+
 ## SSG mode
 
 Quick Start covers the basic case. This section documents everything else.
@@ -510,7 +543,7 @@ import {
 ```
 
 - **`createEmberApp(ssrBundlePath, options?)`** creates a long lived tinypool worker pool. Each worker imports the SSR bundle once at startup. Returns an `EmberApp`. Options: `{ workers?: number, recycleWorkerInterval?: number, isolateWorkers?: boolean, dev?: { ssrLoadModule } }`.
-- **`app.renderRoute(url, options?)`** renders a URL path. Returns `{ head, body, bodyAttrs, htmlAttrs, statusCode, error }`: `bodyAttrs` and `htmlAttrs` are the attributes the render set on `<body>` and `<html>` (`lang`, `dir`, `class`...), which `assembleHTML` applies to the template's tags. Options: `{ shoebox?, cssManifest?, settledTimeout? }`. `settledTimeout` (default `10000`) bounds how long the renderer waits for the SSR bundle's exported `settled()` to resolve, see [Settling](#settling).
+- **`app.renderRoute(url, options?)`** renders a URL path. Returns `{ head, body, bodyAttrs, htmlAttrs, statusCode, error }`, `bodyAttrs` and `htmlAttrs` are the attributes the render set on `<body>` and `<html>` (`lang`, `dir`, `class`...), which `assembleHTML` applies to the template's tags. Options: `{ shoebox?, cssManifest?, settledTimeout? }`. `settledTimeout` (default `10000`) bounds how long the renderer waits for the SSR bundle's exported `settled()` to resolve, see [Settling](#settling).
 - **`app.destroy()`** shuts down the worker pool.
 - **`assembleHTML(template, renderResult)`** inserts rendered fragments into the template at the `<!-- VITE_EMBER_SSR_HEAD -->` and `<!-- VITE_EMBER_SSR_BODY -->` markers, and sets `renderResult.htmlAttrs` and `renderResult.bodyAttrs` on the template's `<html>` and `<body>` (a rendered attribute replaces the template's attribute of the same name).
 - **`loadCssManifest(clientDir)`** loads the CSS manifest from the client build output. Returns `undefined` if not present. Used with lazy routes.
@@ -524,6 +557,7 @@ import {
   shouldRehydrate,
   installShoebox,
   cleanupShoebox,
+  setStatusCode,
 } from 'vite-ember-ssr/client';
 ```
 
@@ -531,6 +565,7 @@ import {
 - **`shouldRehydrate()`** returns `true` if the current page was rendered with rehydration markers (the server injected `window.__vite_ember_ssr_rehydrate__`). Useful when you need to branch on rehydrate vs. plain boot yourself.
 - **`installShoebox()`** replays server captured fetch responses. Auto restores `fetch` once all entries are consumed. Call in `entry.ts` before booting.
 - **`cleanupShoebox()`** manually restores the original `fetch`.
+- **`setStatusCode(code)`** sets the HTTP status code of the page that renders on the server, for example `404` in a not-found route. `renderRoute()` returns it as `statusCode`. See [Status codes](#status-codes).
 
 ## Monorepo development
 

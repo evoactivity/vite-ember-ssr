@@ -9,6 +9,8 @@
  * not carry the rehydrate flag.
  */
 
+export { setStatusCode } from './status-code.js';
+
 // ─── Shoebox Types ───────────────────────────────────────────────────
 
 /**

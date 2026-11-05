@@ -37,6 +37,7 @@ import type {
   EmberAppDevOptions,
 } from './server.js';
 import { installGlobals, restoreGlobals } from './browser-globals.js';
+import { resetStatusCode, statusCodeFor } from './status-code.js';
 import {
   compose,
   forwardCookieMiddleware,
@@ -172,6 +173,9 @@ export function createDevEmberApp(
       let htmlAttrs: Record<string, string> = {};
       let cssLinks = '';
       let error: Error | undefined;
+      let statusCode = 200;
+
+      resetStatusCode();
 
       try {
         const document = win.document;
@@ -266,6 +270,8 @@ export function createDevEmberApp(
       } catch (e) {
         error = e instanceof Error ? e : new Error(String(e));
       } finally {
+        statusCode = statusCodeFor(error);
+        resetStatusCode();
         if (middlewareActive) globalThis.fetch = realFetch;
         restoreGlobals(savedGlobals);
         await win.happyDOM?.close?.();
@@ -284,7 +290,7 @@ export function createDevEmberApp(
         body,
         bodyAttrs,
         htmlAttrs,
-        statusCode: error ? 500 : 200,
+        statusCode,
         ...(error ? { error } : {}),
       };
     },
