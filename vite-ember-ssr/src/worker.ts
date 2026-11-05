@@ -49,6 +49,7 @@ export interface WorkerRenderResult {
   head: string;
   body: string;
   bodyAttrs: Record<string, string>;
+  htmlAttrs: Record<string, string>;
   statusCode: number;
   error?: string;
 }
@@ -222,6 +223,7 @@ export default async function render(
   let head = '';
   let body = '';
   let bodyAttrs: Record<string, string> = {};
+  let htmlAttrs: Record<string, string> = {};
   let cssLinks = '';
   let error: Error | undefined;
   let instance: EmberApplicationInstance | undefined;
@@ -252,6 +254,11 @@ export default async function render(
       for (const attr of Array.from(document.body.attributes)) {
         bodyAttrs[attr.name] = attr.value;
       }
+    }
+
+    // And on <html> (e.g., lang, dir, class).
+    for (const attr of Array.from(document.documentElement.attributes)) {
+      htmlAttrs[attr.name] = attr.value;
     }
   } catch (e) {
     error = e instanceof Error ? e : new Error(String(e));
@@ -287,6 +294,11 @@ export default async function render(
         document.body.removeAttribute(attr.name);
       }
     }
+
+    // Same for <html>.
+    for (const attr of Array.from(document.documentElement.attributes)) {
+      document.documentElement.removeAttribute(attr.name);
+    }
   }
 
   const shoeboxHTML =
@@ -308,6 +320,7 @@ export default async function render(
     head: fullHead,
     body,
     bodyAttrs,
+    htmlAttrs,
     statusCode,
     ...(error
       ? { error: error.message + (error.stack ? '\n' + error.stack : '') }
