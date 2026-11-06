@@ -87,6 +87,20 @@ describe('Dev SSR', () => {
     expect(html).toContain('data-route="index"');
   }, 30_000);
 
+  it('answers the code that the app set with setStatusCode(), for one render only', async () => {
+    const missing = await renderRoute('/missing');
+    const next = await renderRoute('/');
+
+    expect(missing.rendered.statusCode).toBe(404);
+    expect(next.rendered.statusCode).toBe(200);
+  }, 30_000);
+
+  it('answers 404 for a URL that no route matches', async () => {
+    const { rendered } = await renderRoute('/does-not-exist');
+
+    expect(rendered.statusCode).toBe(404);
+  }, 30_000);
+
   it('emits the same rehydration shape as the production worker', async () => {
     const { html, rendered } = await renderRoute('/');
 

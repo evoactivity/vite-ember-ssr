@@ -25,9 +25,13 @@
  */
 
 import { Window } from 'happy-dom';
+import {
+  buildCssLinks,
+  startImportTracking,
+  stopImportTracking,
+} from './css-links.js';
 import type {
   EmberApplication,
-  EmberApplicationInstance,
   BootOptions,
   RenderRouteOptions,
   RenderResult,
@@ -37,6 +41,7 @@ import type {
   EmberAppDevOptions,
 } from './server.js';
 import { installGlobals, restoreGlobals } from './browser-globals.js';
+import { resetStatusCode, statusCodeFor } from './status-code.js';
 import {
   compose,
   forwardCookieMiddleware,
@@ -57,37 +62,6 @@ function serializeShoebox(entries: ShoeboxEntry[]): string {
   if (entries.length === 0) return '';
   const safeJson = JSON.stringify(entries).replace(/<\/(script)/gi, '<\\/$1');
   return `<script type="application/json" id="${SHOEBOX_SCRIPT_ID}">${safeJson}</script>`;
-}
-
-function buildRouteCssLinks(
-  manifest: NonNullable<RenderRouteOptions['cssManifest']>,
-  instance: EmberApplicationInstance,
-): string {
-  if (!instance.lookup) return '';
-  let routeName: string | undefined;
-  try {
-    const router = instance.lookup('service:router') as
-      | { currentRouteName?: string }
-      | undefined;
-    routeName = router?.currentRouteName ?? undefined;
-  } catch {
-    return '';
-  }
-  if (!routeName) return '';
-
-  const segments = routeName.split('.');
-  const seen = new Set<string>();
-  const links: string[] = [];
-  for (let i = 1; i <= segments.length; i++) {
-    const cssFiles = manifest[segments.slice(0, i).join('.')];
-    if (!cssFiles) continue;
-    for (const href of cssFiles) {
-      if (seen.has(href)) continue;
-      seen.add(href);
-      links.push(`<link rel="stylesheet" href="${href}">`);
-    }
-  }
-  return links.join('');
 }
 
 // ─── Dev EmberApp factory ─────────────────────────────────────────────
@@ -172,6 +146,9 @@ export function createDevEmberApp(
       let htmlAttrs: Record<string, string> = {};
       let cssLinks = '';
       let error: Error | undefined;
+      let statusCode = 200;
+
+      resetStatusCode();
 
       // An error the app throws from a timer, or a promise it leaves
       // rejected, while the page renders fails the render (a 500), as one
@@ -208,6 +185,9 @@ export function createDevEmberApp(
           shouldRender: true,
           _renderMode: 'serialize',
         };
+
+        // Every import() during the visit is matched against the CSS manifest
+        const imports = startImportTracking();
 
         const instance = await app.visit(url, bootOptions);
 
@@ -255,9 +235,7 @@ export function createDevEmberApp(
 
         if (asyncErrors[0]) throw asyncErrors[0];
 
-        if (cssManifest) {
-          cssLinks = buildRouteCssLinks(cssManifest, instance);
-        }
+        cssLinks = buildCssLinks(cssManifest, imports);
 
         head = document.head?.innerHTML ?? '';
         body = document.body?.innerHTML ?? '';
@@ -265,13 +243,13 @@ export function createDevEmberApp(
         // Extract attributes set on <body> during rendering
         if (document.body) {
           for (const attr of Array.from(document.body.attributes)) {
-            bodyAttrs[attr.name] = attr.value;
+            bodyAttrs[attr.name] = attr.value ?? '';
           }
         }
 
         // And on <html> (e.g., lang, dir, class)
         for (const attr of Array.from(document.documentElement.attributes)) {
-          htmlAttrs[attr.name] = attr.value;
+          htmlAttrs[attr.name] = attr.value ?? '';
         }
 
         instance.destroy();
@@ -280,6 +258,9 @@ export function createDevEmberApp(
       } finally {
         process.off('uncaughtException', onAsyncError);
         process.off('unhandledRejection', onAsyncError);
+        stopImportTracking();
+        statusCode = statusCodeFor(error);
+        resetStatusCode();
         if (middlewareActive) globalThis.fetch = realFetch;
         restoreGlobals(savedGlobals);
         await win.happyDOM?.close?.();
@@ -298,7 +279,7 @@ export function createDevEmberApp(
         body,
         bodyAttrs,
         htmlAttrs,
-        statusCode: error ? 500 : 200,
+        statusCode,
         ...(error ? { error } : {}),
       };
     },

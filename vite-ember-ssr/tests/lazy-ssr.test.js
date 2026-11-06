@@ -89,34 +89,34 @@ describe('Lazy SSR CSS manifest', () => {
   });
 
   it('omits eager routes from the manifest', () => {
-    expect(cssManifest).not.toHaveProperty('index');
+    expect(cssManifest).not.toHaveProperty('app/templates/index.gts');
   });
 
   it('lists the about route with its own + transitive CSS plus shared CSS', () => {
     // about.gts has: direct about.css + about-info.css (transitive) + shared-badge.css (shared)
     // Vite merges about.css + about-info.css into one chunk, shared-badge.css is separate.
-    expect(cssManifest.about).toEqual(
+    expect(cssManifest['app/templates/about.gts']).toEqual(
       expect.arrayContaining([
         expect.stringMatching(/\/assets\/about-[a-zA-Z0-9_-]+\.css$/),
         expect.stringMatching(/\/assets\/shared-badge-[a-zA-Z0-9_-]+\.css$/),
       ]),
     );
-    expect(cssManifest.about.length).toBe(2);
+    expect(cssManifest['app/templates/about.gts'].length).toBe(2);
   });
 
   it('lists the contact route with only the shared component CSS', () => {
     // contact.gts only imports SharedBadge (no direct CSS import)
-    expect(cssManifest.contact.length).toBe(1);
-    expect(cssManifest.contact[0]).toMatch(
+    expect(cssManifest['app/templates/contact.gts'].length).toBe(1);
+    expect(cssManifest['app/templates/contact.gts'][0]).toMatch(
       /\/assets\/shared-badge-[a-zA-Z0-9_-]+\.css$/,
     );
   });
 
   it('deduplicates the shared component CSS across routes', () => {
-    const aboutShared = cssManifest.about.find((p) =>
+    const aboutShared = cssManifest['app/templates/about.gts'].find((p) =>
       p.includes('shared-badge'),
     );
-    const contactShared = cssManifest.contact.find((p) =>
+    const contactShared = cssManifest['app/templates/contact.gts'].find((p) =>
       p.includes('shared-badge'),
     );
     expect(aboutShared).toBe(contactShared);
@@ -184,6 +184,65 @@ describe('Lazy SSR CSS link injection', () => {
   });
 });
 
+// ─── Lazily loaded component CSS ─────────────────────────────────────
+
+describe('Lazy SSR lazily loaded component CSS', () => {
+  // about.gts renders LazyLoader, which loads LazyChart with import()
+  // while the route renders. LazyChart gets its own chunk and CSS.
+  const LAZY_CHART = 'app/components/lazy-chart.gts';
+  const lazyChartLink =
+    /<link rel="stylesheet" href="\/assets\/lazy-chart-[a-zA-Z0-9_-]+\.css">/g;
+
+  let singleWorkerApp;
+
+  beforeAll(async () => {
+    singleWorkerApp = await createEmberApp(ssrBundlePath, { workers: 1 });
+  });
+
+  afterAll(async () => {
+    await singleWorkerApp.destroy();
+  });
+
+  async function renderOnSingleWorker(url) {
+    const rendered = await singleWorkerApp.renderRoute(url, { cssManifest });
+    return assembleHTML(template, rendered);
+  }
+
+  it('gives the lazily loaded component its own manifest entry', () => {
+    expect(cssManifest[LAZY_CHART]).toEqual([
+      expect.stringMatching(/\/assets\/lazy-chart-[a-zA-Z0-9_-]+\.css$/),
+    ]);
+  });
+
+  it('renders the lazily loaded component on the server', async () => {
+    const { html } = await renderRoute('/about');
+
+    expect(html).toContain('data-component="lazy-chart"');
+  });
+
+  it('links the CSS of the lazily loaded component once', async () => {
+    const { html } = await renderRoute('/about');
+
+    expect(html.match(lazyChartLink)).toHaveLength(1);
+  });
+
+  it('links the CSS again when the same worker renders the page a second time', async () => {
+    const first = await renderOnSingleWorker('/about');
+    const second = await renderOnSingleWorker('/about');
+
+    expect(first.match(lazyChartLink)).toHaveLength(1);
+    expect(second).toContain('data-component="lazy-chart"');
+    expect(second.match(lazyChartLink)).toHaveLength(1);
+  });
+
+  it('does not carry the CSS over to the next page the worker renders', async () => {
+    await renderOnSingleWorker('/about');
+    const html = await renderOnSingleWorker('/contact');
+
+    expect(html).not.toMatch(lazyChartLink);
+  });
+});
+
 // ─── Transitive CSS bundling ─────────────────────────────────────────
 
 describe('Lazy SSR transitive CSS', () => {
@@ -191,7 +250,9 @@ describe('Lazy SSR transitive CSS', () => {
     // about.css is imported directly by about.gts
     // about-info.css is imported by about-info.gts (a component used by about.gts)
     // Vite merges them into a single CSS asset for the dynamic entry chunk.
-    const aboutCssPath = cssManifest.about.find((p) => p.includes('/about-'));
+    const aboutCssPath = cssManifest['app/templates/about.gts'].find((p) =>
+      p.includes('/about-'),
+    );
     expect(aboutCssPath).toBeDefined();
 
     const cssContent = await readFile(

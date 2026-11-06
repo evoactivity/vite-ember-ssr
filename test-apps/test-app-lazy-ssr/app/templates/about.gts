@@ -1,6 +1,7 @@
 import CounterDisplay from '../components/counter-display.gts';
 import AboutInfo from '../components/about-info.gts';
 import SharedBadge from '../components/shared-badge.gts';
+import LazyLoader from '../components/lazy-loader.gts';
 import './about.css';
 
 <template>
@@ -11,5 +12,6 @@ import './about.css';
 
     <AboutInfo />
     <CounterDisplay />
+    <LazyLoader />
   </main>
 </template>
