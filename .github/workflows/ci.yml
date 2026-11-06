@@ -14,10 +14,18 @@ jobs:
   test:
     name: Test (Node ${{ matrix.node-version }})
     runs-on: ubuntu-latest
+    # Pre-release Node versions report problems without blocking the PR
+    continue-on-error: ${{ matrix.prerelease }}
     strategy:
       fail-fast: false
       matrix:
-        node-version: ['22', '24']
+        node-version: ['22', '24', '26']
+        prerelease: [false]
+        include:
+          # Node 27 has only an alpha release so far. Update this to '27'
+          # once Node 27 has a stable release.
+          - node-version: '27.0.0-alpha.0.0.0'
+            prerelease: true
     steps:
       - uses: actions/checkout@de0fac2e4500dabe0009e67214ff5f5447ce83dd # v6.0.2
 
