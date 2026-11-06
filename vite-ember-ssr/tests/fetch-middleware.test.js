@@ -153,6 +153,32 @@ describe('shoeboxMiddleware', () => {
     expect(entry.headers['content-type']).toBe('text/plain');
   });
 
+  it('does NOT serialize Set-Cookie into the entry (auth-token leak)', async () => {
+    const entries = new Map();
+    const terminal = async () => {
+      const headers = new Headers({ 'content-type': 'application/json' });
+      headers.append('set-cookie', 'X-Auth-Token=secret; Path=/; HttpOnly');
+      return new Response('{"ok":true}', {
+        status: 200,
+        statusText: 'OK',
+        headers,
+      });
+    };
+
+    await compose(
+      [shoeboxMiddleware(() => entries)],
+      terminal,
+    )('https://api.example.com/account');
+
+    const entry = entries.get('https://api.example.com/account');
+    // body + non-sensitive headers still captured for replay
+    expect(entry.body).toBe('{"ok":true}');
+    expect(entry.headers['content-type']).toBe('application/json');
+    // Set-Cookie must never reach the serialized shoebox / rendered HTML
+    expect(entry.headers['set-cookie']).toBeUndefined();
+    expect(JSON.stringify(entry)).not.toContain('X-Auth-Token');
+  });
+
   it('captures into the entries map active when the fetch STARTED, not when it resolved (cross-render leak)', async () => {
     // Simulates an orphan fetch: started during render A (whose settled()
     // timed out), resolving after render B has already swapped in its own

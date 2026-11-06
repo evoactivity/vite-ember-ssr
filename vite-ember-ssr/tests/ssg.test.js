@@ -168,3 +168,16 @@ describe('SSG shoebox', () => {
     }
   });
 });
+
+// ─── transformHtml ───────────────────────────────────────────────────
+
+describe('SSG transformHtml', () => {
+  it('runs on each prerendered page, with the route', async () => {
+    expect(await readSsgHtml('index')).toContain(
+      '<meta name="prerendered-route" content="index">',
+    );
+    expect(await readSsgHtml('about')).toContain(
+      '<meta name="prerendered-route" content="about">',
+    );
+  });
+});

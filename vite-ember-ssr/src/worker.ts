@@ -7,7 +7,8 @@
  * so there is no concurrency concern within a single worker.
  *
  * app.visit() fully owns document.head/body between calls, so DOM state does
- * not bleed across renders. A fresh ApplicationInstance is created per visit
+ * not bleed across renders — both are reset after every render, see the
+ * teardown in `render()`. A fresh ApplicationInstance is created per visit
  * and destroyed after the DOM is read, keeping container singletons clean.
  *
  * The shoebox fetch interceptor is installed once at startup. Each render
@@ -25,6 +26,8 @@ import type {
   ShoeboxEntry,
   ForwardedCookie,
 } from './server.js';
+import { installGlobals } from './browser-globals.js';
+import { resetStatusCode, statusCodeFor } from './status-code.js';
 import {
   compose,
   forwardCookieMiddleware,
@@ -51,54 +54,12 @@ export interface WorkerRenderResult {
   head: string;
   body: string;
   bodyAttrs: Record<string, string>;
+  htmlAttrs: Record<string, string>;
   statusCode: number;
   error?: string;
 }
 
 // ─── Browser globals ──────────────────────────────────────────────────
-
-const BROWSER_GLOBALS = [
-  'window',
-  'document',
-  'navigator',
-  'location',
-  'history',
-  'HTMLElement',
-  'Element',
-  'Node',
-  'Event',
-  'CustomEvent',
-  'MutationObserver',
-  'requestAnimationFrame',
-  'cancelAnimationFrame',
-  'self',
-  'localStorage',
-  'sessionStorage',
-  'InputEvent',
-  'KeyboardEvent',
-  'MouseEvent',
-  'FocusEvent',
-  'PointerEvent',
-  'IntersectionObserver',
-  'ResizeObserver',
-  'getComputedStyle',
-  'CSSStyleSheet',
-] as const;
-
-function installGlobals(win: Window): void {
-  for (const name of BROWSER_GLOBALS) {
-    try {
-      Object.defineProperty(globalThis, name, {
-        value: (win as unknown as Record<string, unknown>)[name],
-        writable: true,
-        configurable: true,
-        enumerable: true,
-      });
-    } catch {
-      /* skip non-overridable globals */
-    }
-  }
-}
 
 // ─── Eager startup: single long-lived Window + app ────────────────────
 
@@ -224,10 +185,12 @@ export default async function render(
   // single shared pipeline can serve every render without re-installation.
   activeShoebox = shoebox ? new Map() : null;
   activeCookie = forwardCookie;
+  resetStatusCode();
 
   let head = '';
   let body = '';
   let bodyAttrs: Record<string, string> = {};
+  let htmlAttrs: Record<string, string> = {};
   let cssLinks = '';
   let error: Error | undefined;
   let instance: EmberApplicationInstance | undefined;
@@ -262,6 +225,11 @@ export default async function render(
         bodyAttrs[attr.name] = attr.value ?? '';
       }
     }
+
+    // And on <html> (e.g., lang, dir, class).
+    for (const attr of Array.from(document.documentElement.attributes)) {
+      htmlAttrs[attr.name] = attr.value ?? '';
+    }
   } catch (e) {
     error = e instanceof Error ? e : new Error(String(e));
   } finally {
@@ -282,8 +250,14 @@ export default async function render(
       /* instance teardown failed — the DOM reset below must still run */
     }
 
-    // Serialize mode leaves rehydration markers in the DOM; reset the body so
-    // the next render starts from a clean slate regardless of success/failure.
+    // Serialize mode leaves rehydration markers in the DOM; reset head and body
+    // so the next render starts from a clean slate regardless of success/failure.
+    // `{{#in-element document.head}}` leaves its cursor marker in <head>, so
+    // without the head reset each render inherits the head of the ones before.
+    if (document.head) {
+      document.head.innerHTML = '';
+    }
+
     if (document.body) {
       document.body.innerHTML = '';
 
@@ -292,6 +266,11 @@ export default async function render(
         document.body.removeAttribute(attr.name);
       }
     }
+
+    // Same for <html>.
+    for (const attr of Array.from(document.documentElement.attributes)) {
+      document.documentElement.removeAttribute(attr.name);
+    }
   }
 
   const shoeboxHTML =
@@ -299,9 +278,12 @@ export default async function render(
       ? serializeShoebox(Array.from(activeShoebox.values()))
       : '';
 
+  const statusCode = statusCodeFor(error);
+
   // Clear per-render state so a stray late fetch can't see stale config.
   activeShoebox = null;
   activeCookie = null;
+  resetStatusCode();
   const rehydrateHTML =
     '<script>window.__vite_ember_ssr_rehydrate__=true</script>';
   const fullHead = cssLinks + rehydrateHTML + shoeboxHTML + head;
@@ -310,7 +292,8 @@ export default async function render(
     head: fullHead,
     body,
     bodyAttrs,
-    statusCode: error ? 500 : 200,
+    htmlAttrs,
+    statusCode,
     ...(error
       ? { error: error.message + (error.stack ? '\n' + error.stack : '') }
       : {}),

@@ -1,5 +1,78 @@
 # Changelog
 
+## Release (2026-11-04)
+
+* vite-ember-ssr 0.6.4 (patch)
+
+#### :bug: Bug Fix
+* `vite-ember-ssr`
+  * [#36](https://github.com/evoactivity/vite-ember-ssr/pull/36) assembleHTML: the rendered title replaces the template title ([@NullVoxPopuli-ai-agent](https://github.com/NullVoxPopuli-ai-agent))
+
+#### Committers: 1
+- @NullVoxPopuli's reduced-access machine account for AI usage ([@NullVoxPopuli-ai-agent](https://github.com/NullVoxPopuli-ai-agent))
+
+## Release (2026-11-04)
+
+* vite-ember-ssr 0.6.3 (patch)
+
+#### :bug: Bug Fix
+* `vite-ember-ssr`
+  * [#34](https://github.com/evoactivity/vite-ember-ssr/pull/34) bootRehydrated: keep the URL hash ([@NullVoxPopuli-ai-agent](https://github.com/NullVoxPopuli-ai-agent))
+
+#### Committers: 1
+- @NullVoxPopuli's reduced-access machine account for AI usage ([@NullVoxPopuli-ai-agent](https://github.com/NullVoxPopuli-ai-agent))
+
+## Release (2026-10-12)
+
+* vite-ember-ssr 0.6.2 (patch)
+
+#### :bug: Bug Fix
+* `vite-ember-ssr`
+  * [#32](https://github.com/evoactivity/vite-ember-ssr/pull/32) Install every DOM node class as a global ([@NullVoxPopuli-ai-agent](https://github.com/NullVoxPopuli-ai-agent))
+
+#### Committers: 1
+- @NullVoxPopuli's reduced-access machine account for AI usage ([@NullVoxPopuli-ai-agent](https://github.com/NullVoxPopuli-ai-agent))
+
+## Release (2026-09-30)
+
+* vite-ember-ssr 0.6.1 (patch)
+
+#### :bug: Bug Fix
+* `vite-ember-ssr`
+  * [#30](https://github.com/evoactivity/vite-ember-ssr/pull/30) fix: reset document.head between renders in the worker ([@kennstenicht](https://github.com/kennstenicht))
+
+#### Committers: 1
+- Christoph Wiedenmann ([@kennstenicht](https://github.com/kennstenicht))
+
+## Release (2026-09-18)
+
+* vite-ember-ssr 0.6.0 (minor)
+
+#### :rocket: Enhancement
+* `vite-ember-ssr`
+  * [#28](https://github.com/evoactivity/vite-ember-ssr/pull/28) Add a template option to emberSsg ([@NullVoxPopuli-ai-agent](https://github.com/NullVoxPopuli-ai-agent))
+
+#### Committers: 1
+- @NullVoxPopuli's reduced-access machine account for AI usage ([@NullVoxPopuli-ai-agent](https://github.com/NullVoxPopuli-ai-agent))
+
+## Release (2026-09-18)
+
+* vite-ember-ssr 0.5.0 (minor)
+
+#### :rocket: Enhancement
+* `vite-ember-ssr`
+  * [#26](https://github.com/evoactivity/vite-ember-ssr/pull/26) Add a transformHtml option to emberSsg ([@NullVoxPopuli-ai-agent](https://github.com/NullVoxPopuli-ai-agent))
+
+#### :bug: Bug Fix
+* `vite-ember-ssr`
+  * [#19](https://github.com/evoactivity/vite-ember-ssr/pull/19) fix: make the shoebox fetch interceptor transparent to native-fetch detection ([@st-h](https://github.com/st-h))
+  * [#14](https://github.com/evoactivity/vite-ember-ssr/pull/14) fix: don't serialize Set-Cookie into the shoebox ([@st-h](https://github.com/st-h))
+  * [#25](https://github.com/evoactivity/vite-ember-ssr/pull/25) Drop stylesheet links that the template already has ([@NullVoxPopuli-ai-agent](https://github.com/NullVoxPopuli-ai-agent))
+
+#### Committers: 2
+- @NullVoxPopuli's reduced-access machine account for AI usage ([@NullVoxPopuli-ai-agent](https://github.com/NullVoxPopuli-ai-agent))
+- Steve ([@st-h](https://github.com/st-h))
+
 ## Release (2026-07-19)
 
 * vite-ember-ssr 0.4.1 (patch)

@@ -114,6 +114,8 @@ export interface RenderResult {
   body: string;
   /** Attributes set on the <body> element during rendering (e.g., data-theme, class) */
   bodyAttrs: Record<string, string>;
+  /** Attributes set on the <html> element during rendering (e.g., lang, dir, class) */
+  htmlAttrs: Record<string, string>;
   /** HTTP status code (200 by default) */
   statusCode: number;
   /** Any error that occurred during rendering */
@@ -325,6 +327,7 @@ export async function createEmberApp(
         head: string;
         body: string;
         bodyAttrs: Record<string, string>;
+        htmlAttrs: Record<string, string>;
         statusCode: number;
         error?: string;
       };
@@ -333,6 +336,7 @@ export async function createEmberApp(
         head: result.head,
         body: result.body,
         bodyAttrs: result.bodyAttrs ?? {},
+        htmlAttrs: result.htmlAttrs ?? {},
         statusCode: result.statusCode,
         error: result.error ? new Error(result.error) : undefined,
       };
@@ -357,19 +361,24 @@ const SSR_MARKER_REGEX = /<!-- VITE_EMBER_SSR_(HEAD|BODY) -->/g;
  *
  * When `rendered.bodyAttrs` is provided, attributes set on the `<body>`
  * element during SSR (e.g., `data-theme`, `class`) are applied to the
- * `<body>` tag in the template HTML.
+ * `<body>` tag in the template HTML. `rendered.htmlAttrs` does the same for
+ * the `<html>` tag (e.g., `lang`, `dir`). A rendered attribute replaces the
+ * template's attribute of the same name.
  */
 export function assembleHTML(
   template: string,
-  rendered: Pick<RenderResult, 'head' | 'body' | 'bodyAttrs'>,
+  rendered: Pick<RenderResult, 'head' | 'body'> &
+    Partial<Pick<RenderResult, 'bodyAttrs' | 'htmlAttrs'>>,
 ): string {
   let headReplaced = false;
   let bodyReplaced = false;
 
-  let html = template.replace(SSR_MARKER_REGEX, (_match, tag: string) => {
+  const page = withoutTitleOf(template, rendered.head);
+
+  let html = page.replace(SSR_MARKER_REGEX, (_match, tag: string) => {
     if (tag === 'HEAD' && !headReplaced) {
       headReplaced = true;
-      return rendered.head;
+      return withoutStylesheetsOf(template, rendered.head);
     }
     if (tag === 'BODY' && !bodyReplaced) {
       bodyReplaced = true;
@@ -378,16 +387,86 @@ export function assembleHTML(
     return '';
   });
 
-  // Apply body attributes from SSR rendering
-  const attrs = rendered.bodyAttrs;
-  if (attrs && Object.keys(attrs).length > 0) {
-    const attrString = Object.entries(attrs)
-      .map(([key, value]) => `${key}="${value.replace(/"/g, '&quot;')}"`)
-      .join(' ');
-    html = html.replace(/<body([^>]*)>/, `<body$1 ${attrString}>`);
-  }
+  // Apply <html> and <body> attributes from SSR rendering
+  html = withAttributes(html, 'html', rendered.htmlAttrs);
+  html = withAttributes(html, 'body', rendered.bodyAttrs);
 
   return html;
+}
+
+const ATTRIBUTE_REGEX =
+  /\s([^\s"'<>/=]+)(?:\s*=\s*(?:"[^"]*"|'[^']*'|[^\s"'=<>`]+))?/g;
+
+/**
+ * Sets `attrs` on the first `<tag>` of the HTML: replaces the value of an
+ * attribute the tag already has, and appends the others.
+ */
+function withAttributes(
+  html: string,
+  tag: 'html' | 'body',
+  attrs: Record<string, string> | undefined,
+): string {
+  if (!attrs || Object.keys(attrs).length === 0) return html;
+
+  return html.replace(
+    new RegExp(`<${tag}(\\s[^>]*)?>`, 'i'),
+    (_match, existing = '') => {
+      const kept = (existing as string).replace(
+        ATTRIBUTE_REGEX,
+        (attr, name: string) => (name.toLowerCase() in attrs ? '' : attr),
+      );
+      const added = Object.entries(attrs)
+        .map(
+          ([key, value]) =>
+            ` ${key}="${value.replace(/&/g, '&amp;').replace(/"/g, '&quot;')}"`,
+        )
+        .join('');
+
+      return `<${tag}${kept}${added}>`;
+    },
+  );
+}
+
+const STYLESHEET_LINK_REGEX = /<link\b[^>]*\brel=["']stylesheet["'][^>]*>/g;
+const HREF_REGEX = /\bhref=["']([^"']+)["']/;
+
+const TITLE_REGEX = /[ \t]*<title\b[^>]*>[\s\S]*?<\/title>[ \t]*\r?\n?/i;
+const HEAD_REGEX = /<head\b[^>]*>[\s\S]*?<\/head>/i;
+
+/**
+ * Drops the template's <title> when the rendered head has one.
+ * A document uses its first <title>, so the static title of the template
+ * would win over the title that the app set for the page.
+ * Without a rendered title, the template's title stays as the fallback.
+ */
+function withoutTitleOf(template: string, head: string): string {
+  if (!TITLE_REGEX.test(head)) return template;
+
+  return template.replace(HEAD_REGEX, (templateHead) =>
+    templateHead.replace(TITLE_REGEX, ''),
+  );
+}
+
+/**
+ * Drops the stylesheet links of the rendered head whose href the template
+ * already has. The CSS of a route chunk can also be CSS of the entry, and
+ * Vite already put a link for that in the template; a second link makes the
+ * browser request the file twice, and it blocks rendering twice.
+ */
+function withoutStylesheetsOf(template: string, head: string): string {
+  const inTemplate = new Set<string>();
+
+  for (const link of template.match(STYLESHEET_LINK_REGEX) ?? []) {
+    const href = link.match(HREF_REGEX)?.[1];
+    if (href) inTemplate.add(href);
+  }
+
+  if (inTemplate.size === 0) return head;
+
+  return head.replace(STYLESHEET_LINK_REGEX, (link) => {
+    const href = link.match(HREF_REGEX)?.[1];
+    return href && inTemplate.has(href) ? '' : link;
+  });
 }
 
 /**

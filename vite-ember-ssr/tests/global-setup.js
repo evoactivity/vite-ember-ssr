@@ -5,10 +5,10 @@
  * Builds test apps in parallel once the library is ready.
  */
 import { execSync, exec } from 'node:child_process';
-import { resolve } from 'node:path';
+import { resolve, join } from 'node:path';
 import { fileURLToPath } from 'node:url';
-import { stat, readdir } from 'node:fs/promises';
-import { availableParallelism } from 'node:os';
+import { stat, readdir, mkdtemp, rm } from 'node:fs/promises';
+import { availableParallelism, tmpdir } from 'node:os';
 
 const __dirname = fileURLToPath(new URL('.', import.meta.url));
 const packagesRoot = resolve(__dirname, '../../test-apps');
@@ -26,6 +26,13 @@ const testApps = [
   {
     name: 'test-app-ssg',
     root: resolve(packagesRoot, 'test-app-ssg'),
+    cmd: 'pnpm build',
+    srcDirs: ['app'],
+    distDir: 'dist',
+  },
+  {
+    name: 'test-app-ssg-template',
+    root: resolve(packagesRoot, 'test-app-ssg-template'),
     cmd: 'pnpm build',
     srcDirs: ['app'],
     distDir: 'dist',
@@ -151,16 +158,20 @@ async function needsBuild(root, srcDirs, distDir, extraSrcDirs = []) {
 /**
  * Run a shell command as a promise.
  */
-function runAsync(cmd, cwd) {
+function runAsync(cmd, cwd, env) {
   return new Promise((resolve, reject) => {
-    exec(cmd, { cwd, maxBuffer: 50 * 1024 * 1024 }, (error, stdout, stderr) => {
-      if (error) {
-        console.error(`  ✗ Build failed in ${cwd}:\n${stderr || stdout}`);
-        reject(error);
-      } else {
-        resolve({ stdout, stderr });
-      }
-    });
+    exec(
+      cmd,
+      { cwd, env, maxBuffer: 50 * 1024 * 1024 },
+      (error, stdout, stderr) => {
+        if (error) {
+          console.error(`  ✗ Build failed in ${cwd}:\n${stderr || stdout}`);
+          reject(error);
+        } else {
+          resolve({ stdout, stderr });
+        }
+      },
+    );
   });
 }
 
@@ -220,12 +231,26 @@ export async function setup() {
       while (i < buildTasks.length) {
         const app = buildTasks[i++];
         const start = Date.now();
+        // Give each parallel build its own temp dir. @embroider/vite writes
+        // content-addressed "embroider-vite-jump-<hash>" dirs under os.tmpdir(),
+        // and separate builds that share a dependency compute the same hash.
+        // When two builds race on renameSync into that shared path, one throws
+        // ENOTEMPTY. os.tmpdir() honors TMPDIR, so an isolated dir per build
+        // keeps those jump dirs from colliding.
+        const buildTmp = await mkdtemp(
+          join(tmpdir(), `veb-build-${app.name}-`),
+        );
         try {
-          await runAsync(app.cmd, app.root);
+          await runAsync(app.cmd, app.root, {
+            ...process.env,
+            TMPDIR: buildTmp,
+          });
           const elapsed = ((Date.now() - start) / 1000).toFixed(1);
           console.log(`  ✓ ${app.name} (${elapsed}s)`);
         } catch (error) {
           failures.push(error);
+        } finally {
+          await rm(buildTmp, { recursive: true, force: true });
         }
       }
     }

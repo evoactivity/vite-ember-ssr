@@ -13,6 +13,11 @@ export default defineConfig({
     emberSsg({
       routes: ['index', 'about', 'contact', 'pokemon-fetch'],
       shoebox: true,
+      transformHtml: (html, { route }) =>
+        html.replace(
+          '</head>',
+          `<meta name="prerendered-route" content="${route}"></head>`,
+        ),
     }),
   ],
 });

@@ -9,6 +9,8 @@
  * not carry the rehydrate flag.
  */
 
+export { setStatusCode } from './status-code.js';
+
 // ─── Shoebox Types ───────────────────────────────────────────────────
 
 /**
@@ -135,6 +137,19 @@ export function installShoebox(): boolean {
     return Promise.resolve(response);
   };
 
+  // Advertise the original fetch's source so the wrapper is transparent to
+  // native-fetch detection. Some libraries sniff `fetch.toString()` to decide
+  // whether a mock environment is active and change behavior on it — e.g.
+  // warp-drive's dev builds assume mutable (Mirage-style) response headers and
+  // crash on real responses ("Headers are immutable") while the shoebox
+  // interceptor is installed. The wrapper delegates to the original fetch for
+  // everything it doesn't serve, so reporting its source is accurate enough.
+  // The sniffing only happens in dev builds, so scope the override to Vite dev.
+  if (import.meta.env?.DEV) {
+    const originalSource = _originalFetch.toString();
+    globalThis.fetch.toString = () => originalSource;
+  }
+
   return true;
 }
 
@@ -195,9 +210,10 @@ interface ApplicationClass {
  *   so Glimmer attaches to the existing DOM instead of replacing it.
  * - Otherwise, calls `Application.create(config.APP)` for a normal boot.
  *
- * The visit URL is derived from `window.location.pathname + search`
+ * The visit URL is derived from `window.location.pathname + search + hash`
  * with the configured `rootURL` stripped, matching what `Application.create`
- * would have used internally.
+ * would have used internally. The router writes the visit URL back to the
+ * address bar, so a URL without the hash would remove it.
  *
  * @example
  * ```ts
@@ -224,10 +240,11 @@ export function bootRehydrated(
   });
 
   const rootURL = config.rootURL ?? '/';
-  const url = (window.location.pathname + window.location.search).replace(
-    rootURL,
-    '/',
-  );
+  const url = (
+    window.location.pathname +
+    window.location.search +
+    window.location.hash
+  ).replace(rootURL, '/');
 
   void app.visit?.(url, { _renderMode: 'rehydrate' });
 }

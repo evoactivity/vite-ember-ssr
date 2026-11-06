@@ -269,6 +269,44 @@ describe('body attributes', () => {
     expect(typeof rendered.bodyAttrs).toBe('object');
   });
 
+  it('assembleHTML drops stylesheet links that the template already has', () => {
+    const tmpl =
+      '<html><head><link rel="stylesheet" crossorigin href="/assets/entry-abc.css"><!-- VITE_EMBER_SSR_HEAD --></head><body><!-- VITE_EMBER_SSR_BODY --></body></html>';
+    const rendered = {
+      head: '<link rel="stylesheet" href="/assets/entry-abc.css"><link rel="stylesheet" href="/assets/route-def.css"><title>Test</title>',
+      body: '<div>content</div>',
+    };
+    const html = assembleHTML(tmpl, rendered);
+
+    expect(html.match(/entry-abc\.css/g)).toHaveLength(1);
+    expect(html).toContain(
+      '<link rel="stylesheet" href="/assets/route-def.css">',
+    );
+    expect(html).toContain('<title>Test</title>');
+  });
+
+  it('assembleHTML replaces the template title with the rendered title', () => {
+    const tmpl =
+      '<html><head><title>My App</title>\n<!-- VITE_EMBER_SSR_HEAD --></head><body><!-- VITE_EMBER_SSR_BODY --></body></html>';
+    const rendered = {
+      head: '<title>About | My App</title>',
+      body: '<div>content</div>',
+    };
+    const html = assembleHTML(tmpl, rendered);
+
+    expect(html.match(/<title>/g)).toHaveLength(1);
+    expect(html).toContain('<title>About | My App</title>');
+  });
+
+  it('assembleHTML keeps the template title when the render has none', () => {
+    const tmpl =
+      '<html><head><title>My App</title><!-- VITE_EMBER_SSR_HEAD --></head><body><!-- VITE_EMBER_SSR_BODY --></body></html>';
+    const rendered = { head: '<meta name="x" content="y">', body: '' };
+    const html = assembleHTML(tmpl, rendered);
+
+    expect(html).toContain('<title>My App</title>');
+  });
+
   it('assembleHTML applies bodyAttrs to the <body> tag', () => {
     const tmpl =
       '<html><head><!-- VITE_EMBER_SSR_HEAD --></head><body><!-- VITE_EMBER_SSR_BODY --></body></html>';
@@ -323,11 +361,109 @@ describe('body attributes', () => {
     expect(html).toContain('data-info="he said &quot;hello&quot;"');
   });
 
+  it('assembleHTML replaces a template body attribute of the same name', () => {
+    const tmpl =
+      '<html><head><!-- VITE_EMBER_SSR_HEAD --></head><body class="shell" id="app"><!-- VITE_EMBER_SSR_BODY --></body></html>';
+    const html = assembleHTML(tmpl, {
+      head: '',
+      body: '',
+      bodyAttrs: { class: 'ember-application' },
+    });
+
+    expect(html).toContain('<body id="app" class="ember-application">');
+  });
+
   it('bodyAttrs do not bleed between renders', async () => {
     const first = await renderRoute('/');
     const second = await renderRoute('/about');
 
     expect(first.rendered.bodyAttrs).toBeDefined();
     expect(second.rendered.bodyAttrs).toBeDefined();
+  });
+});
+
+// ─── <html> attributes ───────────────────────────────────────────────
+
+describe('html attributes', () => {
+  const tmpl =
+    '<!DOCTYPE html><html lang="en"><head><!-- VITE_EMBER_SSR_HEAD --></head><body><!-- VITE_EMBER_SSR_BODY --></body></html>';
+
+  it('returns htmlAttrs as an object', async () => {
+    const { rendered } = await renderRoute('/');
+
+    expect(typeof rendered.htmlAttrs).toBe('object');
+  });
+
+  it('assembleHTML sets htmlAttrs on the <html> tag, replacing the template value', () => {
+    const html = assembleHTML(tmpl, {
+      head: '',
+      body: '',
+      htmlAttrs: { lang: 'es-MX', dir: 'ltr' },
+    });
+
+    expect(html).toContain('<!DOCTYPE html><html lang="es-MX" dir="ltr">');
+    expect(html).not.toContain('lang="en"');
+  });
+
+  it('assembleHTML leaves <html> alone without htmlAttrs', () => {
+    const html = assembleHTML(tmpl, { head: '', body: '' });
+
+    expect(html).toContain('<html lang="en">');
+  });
+});
+
+// ─── Status codes ────────────────────────────────────────────────────
+
+describe('status codes', () => {
+  it('answers the code that the app set with setStatusCode()', async () => {
+    const { html, rendered } = await renderRoute('/missing');
+
+    expect(rendered.statusCode).toBe(404);
+    expect(rendered.error).toBeUndefined();
+    expect(html).toContain('data-route="missing"');
+  });
+
+  it('answers 404 for a URL that no route matches', async () => {
+    const { rendered } = await renderRoute('/does-not-exist');
+
+    expect(rendered.statusCode).toBe(404);
+    expect(rendered.error?.message).toContain('/does-not-exist');
+  });
+
+  it("doesn't carry one render's status code into the next", async () => {
+    // One worker, so both renders share its globals.
+    const single = await createEmberApp(ssrBundlePath, { workers: 1 });
+
+    try {
+      expect((await single.renderRoute('/missing')).statusCode).toBe(404);
+      expect((await single.renderRoute('/about')).statusCode).toBe(200);
+    } finally {
+      await single.destroy();
+    }
+  });
+});
+
+// ─── Worker reuse ────────────────────────────────────────────────────
+
+describe('head isolation across renders', () => {
+  it("doesn't carry one render's head into the next", async () => {
+    // One worker, so every render shares a Window. With the default pool size
+    // a machine with enough cores gives each render its own worker and hides
+    // the leak.
+    const single = await createEmberApp(ssrBundlePath, { workers: 1 });
+
+    try {
+      for (const route of ['index', 'about', 'index', 'about']) {
+        const { head } = await single.renderRoute(
+          route === 'index' ? '/' : `/${route}`,
+        );
+
+        expect(head.match(/<script glmr=/g) ?? []).toHaveLength(1);
+        expect(head.match(/name="route-head"/g) ?? []).toHaveLength(1);
+        expect(head).toContain(`content="${route}"`);
+      }
+    } finally {
+      await single.destroy();
+    }
   });
 });

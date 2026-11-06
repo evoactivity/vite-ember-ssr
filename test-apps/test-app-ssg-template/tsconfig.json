@@ -1,0 +1,19 @@
+{
+  "compilerOptions": {
+    "target": "esnext",
+    "module": "esnext",
+    "moduleResolution": "bundler",
+    "strict": true,
+    "noEmit": true,
+    "allowJs": true,
+    "declaration": false,
+    "skipLibCheck": true,
+    "allowImportingTsExtensions": true,
+    "paths": {
+      "test-app/*": ["./app/*"],
+      "*": ["./types/*"]
+    },
+    "types": ["ember-source/types", "vite/client"]
+  },
+  "include": ["app", "types"]
+}

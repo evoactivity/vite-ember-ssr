@@ -1,4 +1,5 @@
 import CounterDisplay from '../components/counter-display.gts';
+import HeadTags from '../components/head-tags.gts';
 import { modifier } from 'ember-modifier';
 
 const doThing = modifier((element) => {
@@ -6,6 +7,8 @@ const doThing = modifier((element) => {
 });
 
 <template>
+  <HeadTags @route="about" />
+
   <main data-route="about">
     <h1>About</h1>
     <p>This is a test application for vite-ember-ssr.</p>
