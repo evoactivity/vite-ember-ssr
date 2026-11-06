@@ -7,11 +7,16 @@
  * Note: This file intentionally mirrors app.ts as closely as possible.
  * The same router import triggers lazy bundle registration, and the same
  * negative glob exclusions keep lazy routes out of the eager bundle.
+ *
+ * Re-exports `settled` so the renderer waits for components that load
+ * other components with `import()` (see components/lazy-loader.gts).
  */
 import EmberApp from 'ember-strict-application-resolver';
 import PageTitleService from 'ember-page-title/services/page-title';
 import config from './config/environment.ts';
 import Router from './router.ts';
+
+export { settled } from '@ember/test-helpers';
 
 class App extends EmberApp {
   modulePrefix = config.modulePrefix;

@@ -184,6 +184,65 @@ describe('Lazy SSR CSS link injection', () => {
   });
 });
 
+// ─── Lazily loaded component CSS ─────────────────────────────────────
+
+describe('Lazy SSR lazily loaded component CSS', () => {
+  // about.gts renders LazyLoader, which loads LazyChart with import()
+  // while the route renders. LazyChart gets its own chunk and CSS.
+  const LAZY_CHART = 'app/components/lazy-chart.gts';
+  const lazyChartLink =
+    /<link rel="stylesheet" href="\/assets\/lazy-chart-[a-zA-Z0-9_-]+\.css">/g;
+
+  let singleWorkerApp;
+
+  beforeAll(async () => {
+    singleWorkerApp = await createEmberApp(ssrBundlePath, { workers: 1 });
+  });
+
+  afterAll(async () => {
+    await singleWorkerApp.destroy();
+  });
+
+  async function renderOnSingleWorker(url) {
+    const rendered = await singleWorkerApp.renderRoute(url, { cssManifest });
+    return assembleHTML(template, rendered);
+  }
+
+  it('gives the lazily loaded component its own manifest entry', () => {
+    expect(cssManifest[LAZY_CHART]).toEqual([
+      expect.stringMatching(/\/assets\/lazy-chart-[a-zA-Z0-9_-]+\.css$/),
+    ]);
+  });
+
+  it('renders the lazily loaded component on the server', async () => {
+    const { html } = await renderRoute('/about');
+
+    expect(html).toContain('data-component="lazy-chart"');
+  });
+
+  it('links the CSS of the lazily loaded component once', async () => {
+    const { html } = await renderRoute('/about');
+
+    expect(html.match(lazyChartLink)).toHaveLength(1);
+  });
+
+  it('links the CSS again when the same worker renders the page a second time', async () => {
+    const first = await renderOnSingleWorker('/about');
+    const second = await renderOnSingleWorker('/about');
+
+    expect(first.match(lazyChartLink)).toHaveLength(1);
+    expect(second).toContain('data-component="lazy-chart"');
+    expect(second.match(lazyChartLink)).toHaveLength(1);
+  });
+
+  it('does not carry the CSS over to the next page the worker renders', async () => {
+    await renderOnSingleWorker('/about');
+    const html = await renderOnSingleWorker('/contact');
+
+    expect(html).not.toMatch(lazyChartLink);
+  });
+});
+
 // ─── Transitive CSS bundling ─────────────────────────────────────────
 
 describe('Lazy SSR transitive CSS', () => {

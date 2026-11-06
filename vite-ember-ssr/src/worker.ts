@@ -259,7 +259,7 @@ export default async function render(
     // Extract attributes set on <body> during rendering (e.g., data-theme, class).
     if (document.body) {
       for (const attr of Array.from(document.body.attributes)) {
-        bodyAttrs[attr.name] = attr.value;
+        bodyAttrs[attr.name] = attr.value ?? '';
       }
     }
   } catch (e) {
