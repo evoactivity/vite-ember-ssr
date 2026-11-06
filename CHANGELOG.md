@@ -1,5 +1,28 @@
 # Changelog
 
+## Release (2026-11-06)
+
+* vite-ember-ssr 0.7.0 (minor)
+
+#### :rocket: Enhancement
+* `vite-ember-ssr`
+  * [#42](https://github.com/evoactivity/vite-ember-ssr/pull/42) Status codes: setStatusCode(), and 404 for a URL with no route ([@NullVoxPopuli-ai-agent](https://github.com/NullVoxPopuli-ai-agent))
+
+#### :bug: Bug Fix
+* `vite-ember-ssr`
+  * [#38](https://github.com/evoactivity/vite-ember-ssr/pull/38) Fix/async render errors ([@betocantu93](https://github.com/betocantu93))
+  * [#24](https://github.com/evoactivity/vite-ember-ssr/pull/24) Key the CSS manifest by imported module, not by route name ([@NullVoxPopuli-ai-agent](https://github.com/NullVoxPopuli-ai-agent))
+  * [#39](https://github.com/evoactivity/vite-ember-ssr/pull/39) Keep the attributes a render sets on <html> ([@betocantu93](https://github.com/betocantu93))
+  * [#40](https://github.com/evoactivity/vite-ember-ssr/pull/40) Only shim CommonJS when Vite serves, not in builds ([@betocantu93](https://github.com/betocantu93))
+
+#### :house: Internal
+* [#44](https://github.com/evoactivity/vite-ember-ssr/pull/44) Test on Node 26 and the Node 27 alpha in CI ([@evoactivity](https://github.com/evoactivity))
+
+#### Committers: 3
+- @NullVoxPopuli's reduced-access machine account for AI usage ([@NullVoxPopuli-ai-agent](https://github.com/NullVoxPopuli-ai-agent))
+- Alberto Cantú Gómez ([@betocantu93](https://github.com/betocantu93))
+- Liam ([@evoactivity](https://github.com/evoactivity))
+
 ## Release (2026-11-04)
 
 * vite-ember-ssr 0.6.4 (patch)

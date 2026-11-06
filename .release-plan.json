@@ -1,11 +1,15 @@
 {
   "solution": {
     "vite-ember-ssr": {
-      "impact": "patch",
-      "oldVersion": "0.6.3",
-      "newVersion": "0.6.4",
+      "impact": "minor",
+      "oldVersion": "0.6.4",
+      "newVersion": "0.7.0",
       "tagName": "latest",
       "constraints": [
+        {
+          "impact": "minor",
+          "reason": "Appears in changelog section :rocket: Enhancement"
+        },
         {
           "impact": "patch",
           "reason": "Appears in changelog section :bug: Bug Fix"
@@ -14,5 +18,5 @@
       "pkgJSONPath": "./vite-ember-ssr/package.json"
     }
   },
-  "description": "## Release (2026-11-04)\n\n* vite-ember-ssr 0.6.4 (patch)\n\n#### :bug: Bug Fix\n* `vite-ember-ssr`\n  * [#36](https://github.com/evoactivity/vite-ember-ssr/pull/36) assembleHTML: the rendered title replaces the template title ([@NullVoxPopuli-ai-agent](https://github.com/NullVoxPopuli-ai-agent))\n\n#### Committers: 1\n- @NullVoxPopuli's reduced-access machine account for AI usage ([@NullVoxPopuli-ai-agent](https://github.com/NullVoxPopuli-ai-agent))\n"
+  "description": "## Release (2026-11-06)\n\n* vite-ember-ssr 0.7.0 (minor)\n\n#### :rocket: Enhancement\n* `vite-ember-ssr`\n  * [#42](https://github.com/evoactivity/vite-ember-ssr/pull/42) Status codes: setStatusCode(), and 404 for a URL with no route ([@NullVoxPopuli-ai-agent](https://github.com/NullVoxPopuli-ai-agent))\n\n#### :bug: Bug Fix\n* `vite-ember-ssr`\n  * [#38](https://github.com/evoactivity/vite-ember-ssr/pull/38) Fix/async render errors ([@betocantu93](https://github.com/betocantu93))\n  * [#24](https://github.com/evoactivity/vite-ember-ssr/pull/24) Key the CSS manifest by imported module, not by route name ([@NullVoxPopuli-ai-agent](https://github.com/NullVoxPopuli-ai-agent))\n  * [#39](https://github.com/evoactivity/vite-ember-ssr/pull/39) Keep the attributes a render sets on <html> ([@betocantu93](https://github.com/betocantu93))\n  * [#40](https://github.com/evoactivity/vite-ember-ssr/pull/40) Only shim CommonJS when Vite serves, not in builds ([@betocantu93](https://github.com/betocantu93))\n\n#### :house: Internal\n* [#44](https://github.com/evoactivity/vite-ember-ssr/pull/44) Test on Node 26 and the Node 27 alpha in CI ([@evoactivity](https://github.com/evoactivity))\n\n#### Committers: 3\n- @NullVoxPopuli's reduced-access machine account for AI usage ([@NullVoxPopuli-ai-agent](https://github.com/NullVoxPopuli-ai-agent))\n- Alberto Cantú Gómez ([@betocantu93](https://github.com/betocantu93))\n- Liam ([@evoactivity](https://github.com/evoactivity))\n"
 }
