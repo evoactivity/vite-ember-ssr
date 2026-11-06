@@ -78,6 +78,25 @@ const win = new Window({
 // Install browser globals once for this worker's lifetime.
 installGlobals(win);
 
+// An error the app throws from a timer, or a promise it leaves rejected,
+// while a page renders: it fails that render (a 500), as an error thrown by
+// `visit()` does. Without these handlers it would kill the worker, losing
+// its warm app, and reject the render's `renderRoute()` instead.
+let renderErrors: Error[] | null = null;
+
+function onAsyncError(e: unknown) {
+  const error = e instanceof Error ? e : new Error(String(e));
+
+  if (renderErrors) {
+    renderErrors.push(error);
+  } else {
+    console.error('[vite-ember-ssr] Error outside a render:', error);
+  }
+}
+
+process.on('uncaughtException', onAsyncError);
+process.on('unhandledRejection', onAsyncError);
+
 const { ssrBundlePath: startupBundlePath } = (
   process as unknown as {
     __tinypool_state__: { workerData: { ssrBundlePath: string } };
@@ -185,6 +204,7 @@ export default async function render(
   // single shared pipeline can serve every render without re-installation.
   activeShoebox = shoebox ? new Map() : null;
   activeCookie = forwardCookie;
+  renderErrors = [];
   resetStatusCode();
 
   let head = '';
@@ -214,6 +234,8 @@ export default async function render(
     // before reading the DOM. Falls back to a microtask drain when the SSR
     // bundle doesn't export `settled`.
     await awaitSettled(settledTimeout);
+
+    if (renderErrors?.[0]) throw renderErrors[0];
 
     cssLinks = buildCssLinks(cssManifest, imports);
     head = document.head?.innerHTML ?? '';
@@ -283,6 +305,7 @@ export default async function render(
   // Clear per-render state so a stray late fetch can't see stale config.
   activeShoebox = null;
   activeCookie = null;
+  renderErrors = null;
   resetStatusCode();
   const rehydrateHTML =
     '<script>window.__vite_ember_ssr_rehydrate__=true</script>';

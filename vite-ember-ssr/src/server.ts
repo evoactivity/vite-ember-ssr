@@ -316,14 +316,7 @@ export async function createEmberApp(
       url: string,
       renderOptions: RenderRouteOptions = {},
     ): Promise<RenderResult> {
-      const result = (await pool.run({
-        ssrBundlePath: bundleURL,
-        url,
-        shoebox: renderOptions.shoebox ?? false,
-        cssManifest: renderOptions.cssManifest ?? null,
-        settledTimeout: renderOptions.settledTimeout ?? 10_000,
-        forwardCookie: renderOptions.forwardCookie ?? null,
-      })) as {
+      let result: {
         head: string;
         body: string;
         bodyAttrs: Record<string, string>;
@@ -331,6 +324,28 @@ export async function createEmberApp(
         statusCode: number;
         error?: string;
       };
+
+      try {
+        result = await pool.run({
+          ssrBundlePath: bundleURL,
+          url,
+          shoebox: renderOptions.shoebox ?? false,
+          cssManifest: renderOptions.cssManifest ?? null,
+          settledTimeout: renderOptions.settledTimeout ?? 10_000,
+          forwardCookie: renderOptions.forwardCookie ?? null,
+        });
+      } catch (e) {
+        // The worker itself failed (it crashed or was killed): the render
+        // fails as one that threw would, and the pool starts a new worker.
+        return {
+          head: '',
+          body: '',
+          bodyAttrs: {},
+          htmlAttrs: {},
+          statusCode: 500,
+          error: e instanceof Error ? e : new Error(String(e)),
+        };
+      }
 
       return {
         head: result.head,
