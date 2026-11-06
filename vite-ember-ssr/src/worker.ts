@@ -33,6 +33,11 @@ import {
   forwardCookieMiddleware,
   shoeboxMiddleware,
 } from './fetch-middleware.js';
+import {
+  buildCssLinks,
+  startImportTracking,
+  stopImportTracking,
+} from './css-links.js';
 
 // ─── Types ────────────────────────────────────────────────────────────
 
@@ -128,44 +133,6 @@ function serializeShoebox(entries: ShoeboxEntry[]): string {
   return `<script type="application/json" id="${SHOEBOX_SCRIPT_ID}">${safeJson}</script>`;
 }
 
-// ─── CSS manifest helpers ─────────────────────────────────────────────
-
-function getActiveRouteName(
-  instance: EmberApplicationInstance,
-): string | undefined {
-  if (!instance.lookup) return undefined;
-  try {
-    const router = instance.lookup('service:router') as
-      | { currentRouteName?: string }
-      | undefined;
-    return router?.currentRouteName ?? undefined;
-  } catch {
-    return undefined;
-  }
-}
-
-function buildRouteCssLinks(
-  manifest: CssManifest | null,
-  instance: EmberApplicationInstance,
-): string {
-  if (!manifest) return '';
-  const routeName = getActiveRouteName(instance);
-  if (!routeName) return '';
-  const segments = routeName.split('.');
-  const seen = new Set<string>();
-  const links: string[] = [];
-  for (let i = 1; i <= segments.length; i++) {
-    const cssFiles = manifest[segments.slice(0, i).join('.')];
-    if (!cssFiles) continue;
-    for (const href of cssFiles) {
-      if (seen.has(href)) continue;
-      seen.add(href);
-      links.push(`<link rel="stylesheet" href="${href}">`);
-    }
-  }
-  return links.join('');
-}
-
 let warnedMissingSettled = false;
 
 async function awaitSettled(timeoutMs: number): Promise<void> {
@@ -238,6 +205,9 @@ export default async function render(
       _renderMode: 'serialize',
     };
 
+    // Every import() during the visit is matched against the CSS manifest
+    const imports = startImportTracking();
+
     instance = await app.visit(url, bootOptions);
 
     // Wait for the app to settle (test waiters, run loop, pending timers, etc.)
@@ -245,24 +215,26 @@ export default async function render(
     // bundle doesn't export `settled`.
     await awaitSettled(settledTimeout);
 
-    if (cssManifest) cssLinks = buildRouteCssLinks(cssManifest, instance);
+    cssLinks = buildCssLinks(cssManifest, imports);
     head = document.head?.innerHTML ?? '';
     body = document.body?.innerHTML ?? '';
 
     // Extract attributes set on <body> during rendering (e.g., data-theme, class).
     if (document.body) {
       for (const attr of Array.from(document.body.attributes)) {
-        bodyAttrs[attr.name] = attr.value;
+        bodyAttrs[attr.name] = attr.value ?? '';
       }
     }
 
     // And on <html> (e.g., lang, dir, class).
     for (const attr of Array.from(document.documentElement.attributes)) {
-      htmlAttrs[attr.name] = attr.value;
+      htmlAttrs[attr.name] = attr.value ?? '';
     }
   } catch (e) {
     error = e instanceof Error ? e : new Error(String(e));
   } finally {
+    stopImportTracking();
+
     // Destroy the instance so its container is torn down cleanly. app.visit()
     // creates a fresh ApplicationInstance per call; without destroying it the
     // container's singletons (including location:none) remain live and can

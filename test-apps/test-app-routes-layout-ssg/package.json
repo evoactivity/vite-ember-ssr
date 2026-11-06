@@ -1,0 +1,58 @@
+{
+  "name": "test-app-routes-layout-ssg",
+  "version": "0.0.0",
+  "private": true,
+  "description": "Test Ember app for vite-ember-ssr SSG with lazy routes kept in app/routes/<name>/ folders",
+  "repository": "",
+  "license": "MIT",
+  "author": "",
+  "type": "module",
+  "imports": {
+    "#app/*": "./app/*",
+    "#config": "./app/config.ts",
+    "#components/*": "./app/components/*",
+    "#services/*": "./app/services/*",
+    "#test-helpers/*": "./tests/helpers/*",
+    "#utils/*": "./app/utils/*"
+  },
+  "exports": {
+    "./tests/*": "./tests/*",
+    "./*": "./app/*"
+  },
+  "scripts": {
+    "build": "vite build",
+    "start": "vite",
+    "lint:types": "ember-tsc --noEmit"
+  },
+  "dependencies": {
+    "@embroider/macros": "1.21.1",
+    "@embroider/router": "3.0.6",
+    "@glimmer/component": "2.1.1",
+    "decorator-transforms": "2.4.0",
+    "ember-source": "7.2.1"
+  },
+  "devDependencies": {
+    "@babel/core": "7.29.7",
+    "@babel/plugin-transform-runtime": "7.29.7",
+    "@babel/plugin-transform-typescript": "7.29.7",
+    "@babel/runtime": "7.29.7",
+    "@ember/app-tsconfig": "2.0.0",
+    "@embroider/core": "4.6.7",
+    "@glint/ember-tsc": "1.11.4",
+    "@glint/template": "1.9.0",
+    "@glint/tsserver-plugin": "2.7.7",
+    "@nullvoxpopuli/ember-vite": "1.1.1",
+    "@rollup/plugin-babel": "7.1.0",
+    "babel-plugin-debug-macros": "2.0.0",
+    "babel-plugin-ember-template-compilation": "4.0.0",
+    "typescript": "6.0.3",
+    "vite": "8.3.0",
+    "vite-ember-ssr": "workspace:*"
+  },
+  "engines": {
+    "node": ">= 24"
+  },
+  "ember": {
+    "edition": "octane"
+  }
+}

@@ -1,0 +1,71 @@
+import { buildMacros } from '@embroider/macros/babel';
+
+const isProduction = process.env.NODE_ENV === 'production';
+
+const macros = buildMacros({
+  configure(config) {
+    if (process.env.EMBER_ENV === 'test') {
+      config.enableRuntimeMode();
+    }
+
+    // @embroider/router only enables lazy route bundles
+    // when it knows that it runs in an Embroider build
+    config.setGlobalConfig(import.meta.filename, '@embroider/core', {
+      active: true,
+    });
+  },
+});
+
+export default {
+  plugins: [
+    [
+      '@babel/plugin-transform-typescript',
+      {
+        allExtensions: true,
+        onlyRemoveTypeImports: true,
+        allowDeclareFields: true,
+      },
+    ],
+    [
+      'babel-plugin-ember-template-compilation',
+      {
+        transforms: [...macros.templateMacros],
+      },
+    ],
+    [
+      'module:decorator-transforms',
+      {
+        runtime: {
+          import: import.meta.resolve('decorator-transforms/runtime-esm'),
+        },
+      },
+    ],
+    [
+      '@babel/plugin-transform-runtime',
+      {
+        absoluteRuntime: import.meta.dirname,
+        useESModules: true,
+        regenerator: false,
+      },
+    ],
+    isProduction && [
+      'babel-plugin-debug-macros',
+      {
+        debugTools: {
+          isDebug: false,
+          source: '@ember/debug',
+          assertPredicateIndex: 1,
+        },
+        externalizeHelpers: {
+          module: '@ember/debug',
+        },
+      },
+      '@ember/debug stripping',
+    ],
+    ...macros.babelMacros,
+  ].filter(Boolean),
+
+  generatorOpts: {
+    compact: false,
+  },
+};
