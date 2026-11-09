@@ -3,7 +3,7 @@
 Vite plugin and runtime for server side rendering (SSR) and static site generation (SSG) of Ember.js applications. Renders Ember in Node.js using [HappyDOM](https://github.com/capricorn86/happy-dom), with no FastBoot and no VM sandbox.
 
 > [!WARNING]
-> **EXPERIMENTAL.** This project is in early development and targets **compatless** Ember apps only (no `@embroider/compat`, no `ember-cli-build.js`, no `classicEmberSupport()`). APIs will change. Do not use in production.
+> This project is in early development and is tested against **compatless** Ember apps only (no `@embroider/compat`, no `ember-cli-build.js`, no `classicEmberSupport()`).
 
 ## Requirements
 
