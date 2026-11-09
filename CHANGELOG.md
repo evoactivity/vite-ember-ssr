@@ -1,5 +1,10 @@
 # Changelog
 
+
+
+
+
+
 ## Release (2026-11-06)
 
 * vite-ember-ssr 0.7.0 (minor)
