@@ -41,6 +41,7 @@ import type {
   EmberAppDevOptions,
 } from './server.js';
 import { installGlobals, restoreGlobals } from './browser-globals.js';
+import { serializeControlState } from './control-state.js';
 import { resetStatusCode, statusCodeFor } from './status-code.js';
 import {
   compose,
@@ -119,6 +120,7 @@ export function createDevEmberApp(
         },
       });
 
+      serializeControlState(win);
       const savedGlobals = installGlobals(win);
 
       // Build a per-render fetch middleware pipeline. State is captured by

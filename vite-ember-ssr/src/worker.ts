@@ -27,6 +27,7 @@ import type {
   ForwardedCookie,
 } from './server.js';
 import { installGlobals } from './browser-globals.js';
+import { serializeControlState } from './control-state.js';
 import { resetStatusCode, statusCodeFor } from './status-code.js';
 import {
   compose,
@@ -77,6 +78,7 @@ const win = new Window({
 
 // Install browser globals once for this worker's lifetime.
 installGlobals(win);
+serializeControlState(win);
 
 // An error the app throws from a timer, or a promise it leaves rejected,
 // while a page renders: it fails that render (a 500), as an error thrown by
