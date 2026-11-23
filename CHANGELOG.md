@@ -1,5 +1,16 @@
 # Changelog
 
+## Release (2026-11-23)
+
+* vite-ember-ssr 0.8.0 (minor)
+
+#### :rocket: Enhancement
+* `vite-ember-ssr`
+  * [#46](https://github.com/evoactivity/vite-ember-ssr/pull/46) Serialize form control state in the server render ([@NullVoxPopuli-ai-agent](https://github.com/NullVoxPopuli-ai-agent))
+
+#### Committers: 1
+- @NullVoxPopuli's reduced-access machine account for AI usage ([@NullVoxPopuli-ai-agent](https://github.com/NullVoxPopuli-ai-agent))
+
 ## Release (2026-11-06)
 
 * vite-ember-ssr 0.7.0 (minor)
